@@ -10,6 +10,8 @@ function App() {
   const [newProductStock, setNewProductStock] = useState("");
   const [orderFilter, setOrderFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState("home"); // Track which page to show
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [editingStock, setEditingStock] = useState("");
 
   useEffect(() => {
     fetchProducts();
@@ -82,6 +84,38 @@ function App() {
       });
   };
 
+  const updateProductStock = (productId) => {
+    if (!editingStock || editingStock < 0) {
+      alert("Please enter a valid stock amount");
+      return;
+    }
+
+    fetch(`http://localhost:3000/products/${productId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ stock: parseInt(editingStock) }),
+    })
+      .then((response) => response.json())
+      .then((updatedProduct) => {
+        // Update product in local state
+        setProducts(
+          products.map((product) =>
+            product.id === productId ? updatedProduct : product,
+          ),
+        );
+        // Clear editing state
+        setEditingProductId(null);
+        setEditingStock("");
+        alert(`Stock updated successfully!`);
+      })
+      .catch((error) => {
+        console.error("Error updating product:", error);
+        alert("Failed to update stock");
+      });
+  };
+
   const getLowStockProducts = () => {
     const threshold = 60;
     return products.filter((product) => product.stock < threshold);
@@ -133,21 +167,30 @@ function App() {
       {/* Stats Cards */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon">📦</div>
+          <div className="stat-icon">
+            <i className="fas fa-box" style={{ color: "#3b82f6" }}></i>
+          </div>
           <div className="stat-content">
             <div className="stat-value">{products.length}</div>
             <div className="stat-label">Total Products</div>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">📋</div>
+          <div className="stat-icon">
+            <i
+              className="fas fa-clipboard-list"
+              style={{ color: "#10b981" }}
+            ></i>
+          </div>
           <div className="stat-content">
             <div className="stat-value">{orders.length}</div>
             <div className="stat-label">Total Orders</div>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">⏳</div>
+          <div className="stat-icon">
+            <i className="fas fa-clock" style={{ color: "#f59e0b" }}></i>
+          </div>
           <div className="stat-content">
             <div className="stat-value">
               {orders.filter((o) => o.status === "pending").length}
@@ -156,7 +199,12 @@ function App() {
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">⚠️</div>
+          <div className="stat-icon">
+            <i
+              className="fas fa-exclamation-triangle"
+              style={{ color: "#ef4444" }}
+            ></i>
+          </div>
           <div className="stat-content">
             <div className="stat-value">{getLowStockProducts().length}</div>
             <div className="stat-label">Low Stock Items</div>
@@ -167,7 +215,7 @@ function App() {
       {/* Low Stock Alerts */}
       {getLowStockProducts().length > 0 && (
         <div className="section">
-          <h2 className="section-title">⚠️ Low Stock Alerts</h2>
+          <h2 className="section-title">Low Stock Alerts</h2>
           <div
             className="card"
             style={{
@@ -235,7 +283,7 @@ function App() {
   // Orders page
   const renderOrdersPage = () => (
     <>
-      <h1 className="page-title">📋 Orders Management</h1>
+      <h1 className="page-title">Orders Management</h1>
 
       <div className="section">
         <div className="card">
@@ -280,7 +328,7 @@ function App() {
           <div style={{ marginBottom: "20px" }}>
             <input
               type="text"
-              placeholder="🔍 Search orders by customer or product name..."
+              placeholder="Search orders by customer or product name..."
               value={orderSearch}
               onChange={(e) => setOrderSearch(e.target.value)}
               style={{
@@ -304,6 +352,7 @@ function App() {
                   <th>Customer</th>
                   <th>Product</th>
                   <th>Quantity</th>
+                  <th>Created</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
@@ -315,6 +364,7 @@ function App() {
                     <td>{order.customerName}</td>
                     <td>{order.productName}</td>
                     <td>{order.quantity}</td>
+                    <td>{new Date(order.createdAt).toLocaleString()}</td>
                     <td>
                       <span
                         className={`badge ${order.status === "pending" ? "badge-orange" : "badge-green"}`}
@@ -345,11 +395,11 @@ function App() {
   // Products page
   const renderProductsPage = () => (
     <>
-      <h1 className="page-title">📦 Products Management</h1>
+      <h1 className="page-title">Products Management</h1>
 
       {/* Add Product Form */}
       <div className="section">
-        <h2 className="section-title">➕ Add New Product</h2>
+        <h2 className="section-title">Add New Product</h2>
         <div className="card">
           <form
             onSubmit={addProduct}
@@ -419,7 +469,7 @@ function App() {
           <div style={{ marginBottom: "20px" }}>
             <input
               type="text"
-              placeholder="🔍 Search products by name..."
+              placeholder="Search products by name..."
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
               style={{
@@ -443,6 +493,7 @@ function App() {
                   <th>Product ID</th>
                   <th>Product Name</th>
                   <th>Stock Level</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -451,11 +502,70 @@ function App() {
                     <td>{product.id}</td>
                     <td>{product.name}</td>
                     <td>
-                      <span
-                        className={`badge ${product.stock > 50 ? "badge-green" : "badge-orange"}`}
-                      >
-                        {product.stock} units
-                      </span>
+                      {editingProductId === product.id ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "10px",
+                            alignItems: "center",
+                          }}
+                        >
+                          <input
+                            type="number"
+                            value={editingStock}
+                            onChange={(e) => setEditingStock(e.target.value)}
+                            min="0"
+                            style={{
+                              width: "100px",
+                              padding: "6px",
+                              border: "1px solid #d1d5db",
+                              borderRadius: "6px",
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => updateProductStock(product.id)}
+                            className="button"
+                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                          >
+                            <i className="fas fa-check"></i> Save
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingProductId(null);
+                              setEditingStock("");
+                            }}
+                            className="button"
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: "12px",
+                              backgroundColor: "#6b7280",
+                            }}
+                          >
+                            <i className="fas fa-times"></i> Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          className={`badge ${product.stock > 50 ? "badge-green" : "badge-orange"}`}
+                        >
+                          {product.stock} units
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {editingProductId !== product.id && (
+                        <button
+                          onClick={() => {
+                            setEditingProductId(product.id);
+                            setEditingStock(product.stock);
+                          }}
+                          className="button"
+                          style={{ padding: "6px 12px", fontSize: "12px" }}
+                        >
+                          <i className="fas fa-edit"></i> Edit Stock
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -472,26 +582,28 @@ function App() {
       {/* Sidebar */}
       <div className="sidebar">
         <div className="sidebar-header">
-          <h2>📦 OrderFlow</h2>
+          <h2>
+            <i className="fas fa-warehouse"></i> Vreeburg
+          </h2>
         </div>
         <nav className="sidebar-nav">
           <button
             className={`nav-item ${currentPage === "home" ? "active" : ""}`}
             onClick={() => setCurrentPage("home")}
           >
-            🏠 Home
+            <i className="fas fa-home"></i> Home
           </button>
           <button
             className={`nav-item ${currentPage === "orders" ? "active" : ""}`}
             onClick={() => setCurrentPage("orders")}
           >
-            📋 Orders
+            <i className="fas fa-clipboard-list"></i> Orders
           </button>
           <button
             className={`nav-item ${currentPage === "products" ? "active" : ""}`}
             onClick={() => setCurrentPage("products")}
           >
-            📦 Products
+            <i className="fas fa-box"></i> Products
           </button>
         </nav>
       </div>

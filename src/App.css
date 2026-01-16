@@ -181,6 +181,17 @@
   padding: 12px;
 }
 
+/* Icon spacing */
+.sidebar-nav i,
+.page-title i,
+.section-title i {
+  margin-right: 8px;
+}
+
+.stat-icon i {
+  font-size: 32px;
+}
+
 /* Badge styling */
 .badge {
   padding: 4px 12px;
