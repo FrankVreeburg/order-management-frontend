@@ -1,38 +1,116 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
+/* Main container */
+.container {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+  background-color: #f3f4f6;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Header section */
+.header {
+  background-color: #1f2937;
   color: white;
+  padding: 30px;
+  border-radius: 10px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.App-link {
-  color: #61dafb;
+.title {
+  margin: 0 0 10px 0;
+  font-size: 32px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.subtitle {
+  margin: 0;
+  font-size: 16px;
+  color: #9ca3af;
+}
+
+/* Section styling */
+.section {
+  margin-bottom: 30px;
+}
+
+.section-title {
+  font-size: 24px;
+  margin-bottom: 15px;
+  color: #1f2937;
+}
+
+/* Card container */
+.card {
+  background-color: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Table styling */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-header {
+  background-color: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.table-header th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+}
+
+.table-row {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table-row td {
+  padding: 12px;
+}
+
+/* Badge styling */
+.badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  display: inline-block;
+}
+
+.badge-green {
+  background-color: #10b981;
+}
+
+.badge-orange {
+  background-color: #f59e0b;
+}
+
+/* Button styling */
+.button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.button:hover {
+  background-color: #2563eb;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  color: #6b7280;
+  padding: 40px;
+  font-size: 16px;
 }
