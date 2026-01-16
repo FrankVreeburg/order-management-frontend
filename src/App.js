@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
-import "./App.css"; // Import the CSS file
+import "./App.css";
 
 function App() {
+  const [productSearch, setProductSearch] = useState("");
+  const [orderSearch, setOrderSearch] = useState("");
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [newProductName, setNewProductName] = useState("");
   const [newProductStock, setNewProductStock] = useState("");
-  const [orderFilter, setOrderFilter] = useState("all"); // 'all', 'pending', or 'processed'
+  const [orderFilter, setOrderFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState("home"); // Track which page to show
 
-  // Fetch data when component loads
   useEffect(() => {
     fetchProducts();
     fetchOrders();
@@ -29,7 +31,6 @@ function App() {
   };
 
   const processOrder = (orderId) => {
-    // Send PATCH request to backend to update order status
     fetch(`http://localhost:3000/orders/${orderId}`, {
       method: "PATCH",
       headers: {
@@ -39,7 +40,6 @@ function App() {
     })
       .then((response) => response.json())
       .then((updatedOrder) => {
-        // Update the order in our local state with the response from backend
         setOrders(
           orders.map((order) => (order.id === orderId ? updatedOrder : order)),
         );
@@ -51,21 +51,14 @@ function App() {
       });
   };
 
-  const getLowStockProducts = () => {
-    const threshold = 60; // Products with stock below this are "low"
-    return products.filter((product) => product.stock < threshold);
-  };
-
   const addProduct = (e) => {
-    e.preventDefault(); // Prevents page refresh on form submit
+    e.preventDefault();
 
-    // Validation
     if (!newProductName || !newProductStock) {
       alert("Please fill in all fields");
       return;
     }
 
-    // Send POST request to backend
     fetch("http://localhost:3000/products", {
       method: "POST",
       headers: {
@@ -78,9 +71,7 @@ function App() {
     })
       .then((response) => response.json())
       .then((newProduct) => {
-        // Add new product to local state
         setProducts([...products, newProduct]);
-        // Clear form
         setNewProductName("");
         setNewProductStock("");
         alert(`Product "${newProduct.name}" added successfully!`);
@@ -91,6 +82,11 @@ function App() {
       });
   };
 
+  const getLowStockProducts = () => {
+    const threshold = 60;
+    return products.filter((product) => product.stock < threshold);
+  };
+
   const getFilteredOrders = () => {
     if (orderFilter === "all") {
       return orders;
@@ -98,15 +94,77 @@ function App() {
     return orders.filter((order) => order.status === orderFilter);
   };
 
-  return (
-    <div className="container">
-      {/* Header */}
-      <div className="header">
-        <h1 className="title">📦 Order Management Dashboard</h1>
-        <p className="subtitle">Warehouse Control Center</p>
+  const getSearchedProducts = () => {
+    if (!productSearch) return products;
+    return products.filter((product) =>
+      product.name.toLowerCase().includes(productSearch.toLowerCase()),
+    );
+  };
+
+  const getSearchedAndFilteredOrders = () => {
+    let filtered = getFilteredOrders();
+    if (!orderSearch) return filtered;
+    return filtered.filter(
+      (order) =>
+        order.customerName.toLowerCase().includes(orderSearch.toLowerCase()) ||
+        order.productName.toLowerCase().includes(orderSearch.toLowerCase()),
+    );
+  };
+
+  // Render different content based on selected page
+  const renderContent = () => {
+    switch (currentPage) {
+      case "home":
+        return renderHomePage();
+      case "orders":
+        return renderOrdersPage();
+      case "products":
+        return renderProductsPage();
+      default:
+        return renderHomePage();
+    }
+  };
+
+  // Home/Overview page
+  const renderHomePage = () => (
+    <>
+      <h1 className="page-title">Dashboard Overview</h1>
+
+      {/* Stats Cards */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon">📦</div>
+          <div className="stat-content">
+            <div className="stat-value">{products.length}</div>
+            <div className="stat-label">Total Products</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">📋</div>
+          <div className="stat-content">
+            <div className="stat-value">{orders.length}</div>
+            <div className="stat-label">Total Orders</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">⏳</div>
+          <div className="stat-content">
+            <div className="stat-value">
+              {orders.filter((o) => o.status === "pending").length}
+            </div>
+            <div className="stat-label">Pending Orders</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">⚠️</div>
+          <div className="stat-content">
+            <div className="stat-value">{getLowStockProducts().length}</div>
+            <div className="stat-label">Low Stock Items</div>
+          </div>
+        </div>
       </div>
 
-      {/* Low Stock Alerts - add this after the header div */}
+      {/* Low Stock Alerts */}
       {getLowStockProducts().length > 0 && (
         <div className="section">
           <h2 className="section-title">⚠️ Low Stock Alerts</h2>
@@ -131,6 +189,163 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Recent Orders */}
+      <div className="section">
+        <h2 className="section-title">Recent Orders</h2>
+        <div className="card">
+          {orders.length === 0 ? (
+            <p className="empty-state">No orders yet.</p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr className="table-header">
+                  <th>Order ID</th>
+                  <th>Customer</th>
+                  <th>Product</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders
+                  .slice(-5)
+                  .reverse()
+                  .map((order) => (
+                    <tr key={order.id} className="table-row">
+                      <td>#{order.id}</td>
+                      <td>{order.customerName}</td>
+                      <td>{order.productName}</td>
+                      <td>
+                        <span
+                          className={`badge ${order.status === "pending" ? "badge-orange" : "badge-green"}`}
+                        >
+                          {order.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  // Orders page
+  const renderOrdersPage = () => (
+    <>
+      <h1 className="page-title">📋 Orders Management</h1>
+
+      <div className="section">
+        <div className="card">
+          {/* Filter buttons */}
+          <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
+            <button
+              onClick={() => setOrderFilter("all")}
+              className="button"
+              style={{
+                backgroundColor: orderFilter === "all" ? "#3b82f6" : "#e5e7eb",
+                color: orderFilter === "all" ? "white" : "#374151",
+              }}
+            >
+              All Orders ({orders.length})
+            </button>
+            <button
+              onClick={() => setOrderFilter("pending")}
+              className="button"
+              style={{
+                backgroundColor:
+                  orderFilter === "pending" ? "#f59e0b" : "#e5e7eb",
+                color: orderFilter === "pending" ? "white" : "#374151",
+              }}
+            >
+              Pending ({orders.filter((o) => o.status === "pending").length})
+            </button>
+            <button
+              onClick={() => setOrderFilter("processed")}
+              className="button"
+              style={{
+                backgroundColor:
+                  orderFilter === "processed" ? "#10b981" : "#e5e7eb",
+                color: orderFilter === "processed" ? "white" : "#374151",
+              }}
+            >
+              Processed ({orders.filter((o) => o.status === "processed").length}
+              )
+            </button>
+          </div>
+
+          {/* Search bar */}
+          <div style={{ marginBottom: "20px" }}>
+            <input
+              type="text"
+              placeholder="🔍 Search orders by customer or product name..."
+              value={orderSearch}
+              onChange={(e) => setOrderSearch(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 15px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
+              }}
+            />
+          </div>
+
+          {/* Orders table */}
+          {getSearchedAndFilteredOrders().length === 0 ? (
+            <p className="empty-state">No orders found.</p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr className="table-header">
+                  <th>Order ID</th>
+                  <th>Customer</th>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {getSearchedAndFilteredOrders().map((order) => (
+                  <tr key={order.id} className="table-row">
+                    <td>#{order.id}</td>
+                    <td>{order.customerName}</td>
+                    <td>{order.productName}</td>
+                    <td>{order.quantity}</td>
+                    <td>
+                      <span
+                        className={`badge ${order.status === "pending" ? "badge-orange" : "badge-green"}`}
+                      >
+                        {order.status}
+                      </span>
+                    </td>
+                    <td>
+                      {order.status === "pending" && (
+                        <button
+                          onClick={() => processOrder(order.id)}
+                          className="button"
+                        >
+                          Process Order
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  // Products page
+  const renderProductsPage = () => (
+    <>
+      <h1 className="page-title">📦 Products Management</h1>
 
       {/* Add Product Form */}
       <div className="section">
@@ -196,118 +411,51 @@ function App() {
         </div>
       </div>
 
-      {/* Inventory Section */}
+      {/* Current Inventory */}
       <div className="section">
-        <h2 className="section-title">📊 Current Inventory</h2>
+        <h2 className="section-title">Current Inventory</h2>
         <div className="card">
-          <table className="table">
-            <thead>
-              <tr className="table-header">
-                <th>Product ID</th>
-                <th>Product Name</th>
-                <th>Stock Level</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((product) => (
-                <tr key={product.id} className="table-row">
-                  <td>{product.id}</td>
-                  <td>{product.name}</td>
-                  <td>
-                    <span
-                      className={`badge ${product.stock > 50 ? "badge-green" : "badge-orange"}`}
-                    >
-                      {product.stock} units
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Orders Section */}
-      <div className="section">
-        <h2 className="section-title">📋 Incoming Orders</h2>
-        <div className="card">
-          {/* Filter buttons */}
-          <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
-            <button
-              onClick={() => setOrderFilter("all")}
-              className="button"
+          {/* Search bar */}
+          <div style={{ marginBottom: "20px" }}>
+            <input
+              type="text"
+              placeholder="🔍 Search products by name..."
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
               style={{
-                backgroundColor: orderFilter === "all" ? "#3b82f6" : "#e5e7eb",
-                color: orderFilter === "all" ? "white" : "#374151",
+                width: "100%",
+                padding: "10px 15px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
               }}
-            >
-              All Orders ({orders.length})
-            </button>
-            <button
-              onClick={() => setOrderFilter("pending")}
-              className="button"
-              style={{
-                backgroundColor:
-                  orderFilter === "pending" ? "#f59e0b" : "#e5e7eb",
-                color: orderFilter === "pending" ? "white" : "#374151",
-              }}
-            >
-              Pending ({orders.filter((o) => o.status === "pending").length})
-            </button>
-            <button
-              onClick={() => setOrderFilter("processed")}
-              className="button"
-              style={{
-                backgroundColor:
-                  orderFilter === "processed" ? "#10b981" : "#e5e7eb",
-                color: orderFilter === "processed" ? "white" : "#374151",
-              }}
-            >
-              Processed ({orders.filter((o) => o.status === "processed").length}
-              )
-            </button>
+            />
           </div>
 
-          {/* Orders table */}
-          {getFilteredOrders().length === 0 ? (
+          {getSearchedProducts().length === 0 ? (
             <p className="empty-state">
-              No {orderFilter === "all" ? "" : orderFilter} orders found.
+              No products found matching "{productSearch}"
             </p>
           ) : (
             <table className="table">
               <thead>
                 <tr className="table-header">
-                  <th>Order ID</th>
-                  <th>Customer</th>
-                  <th>Product</th>
-                  <th>Quantity</th>
-                  <th>Status</th>
-                  <th>Action</th>
+                  <th>Product ID</th>
+                  <th>Product Name</th>
+                  <th>Stock Level</th>
                 </tr>
               </thead>
               <tbody>
-                {getFilteredOrders().map((order) => (
-                  <tr key={order.id} className="table-row">
-                    <td>#{order.id}</td>
-                    <td>{order.customerName}</td>
-                    <td>{order.productName}</td>
-                    <td>{order.quantity}</td>
+                {getSearchedProducts().map((product) => (
+                  <tr key={product.id} className="table-row">
+                    <td>{product.id}</td>
+                    <td>{product.name}</td>
                     <td>
                       <span
-                        className={`badge ${order.status === "pending" ? "badge-orange" : "badge-green"}`}
+                        className={`badge ${product.stock > 50 ? "badge-green" : "badge-orange"}`}
                       >
-                        {order.status}
+                        {product.stock} units
                       </span>
-                    </td>
-                    <td>
-                      {order.status === "pending" && (
-                        <button
-                          onClick={() => processOrder(order.id)}
-                          className="button"
-                        >
-                          Process Order
-                        </button>
-                      )}
                     </td>
                   </tr>
                 ))}
@@ -316,6 +464,40 @@ function App() {
           )}
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <div className="app-layout">
+      {/* Sidebar */}
+      <div className="sidebar">
+        <div className="sidebar-header">
+          <h2>📦 OrderFlow</h2>
+        </div>
+        <nav className="sidebar-nav">
+          <button
+            className={`nav-item ${currentPage === "home" ? "active" : ""}`}
+            onClick={() => setCurrentPage("home")}
+          >
+            🏠 Home
+          </button>
+          <button
+            className={`nav-item ${currentPage === "orders" ? "active" : ""}`}
+            onClick={() => setCurrentPage("orders")}
+          >
+            📋 Orders
+          </button>
+          <button
+            className={`nav-item ${currentPage === "products" ? "active" : ""}`}
+            onClick={() => setCurrentPage("products")}
+          >
+            📦 Products
+          </button>
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <div className="main-content">{renderContent()}</div>
     </div>
   );
 }
