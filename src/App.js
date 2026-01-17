@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import "./App.css";
 
 function App() {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
   const [products, setProducts] = useState([]);
@@ -580,36 +581,64 @@ function App() {
   return (
     <div className="app-layout">
       {/* Sidebar */}
-      <div className="sidebar">
+      <div className={`sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
         <div className="sidebar-header">
-          <h2>
-            <i className="fas fa-warehouse"></i> Vreeburg
-          </h2>
+          {!sidebarCollapsed && (
+            <h2>
+              <i className="fas fa-warehouse"></i> OrderFlow
+            </h2>
+          )}
+          {sidebarCollapsed && (
+            <h2>
+              <i className="fas fa-warehouse"></i>
+            </h2>
+          )}
         </div>
+
+        <button
+          className="sidebar-toggle"
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <i
+            className={`fas fa-${sidebarCollapsed ? "angle-right" : "angle-left"}`}
+          ></i>
+        </button>
+
         <nav className="sidebar-nav">
           <button
             className={`nav-item ${currentPage === "home" ? "active" : ""}`}
             onClick={() => setCurrentPage("home")}
+            title="Home"
           >
-            <i className="fas fa-home"></i> Home
+            <i className="fas fa-home"></i>
+            {!sidebarCollapsed && <span> Home</span>}
           </button>
           <button
             className={`nav-item ${currentPage === "orders" ? "active" : ""}`}
             onClick={() => setCurrentPage("orders")}
+            title="Orders"
           >
-            <i className="fas fa-clipboard-list"></i> Orders
+            <i className="fas fa-clipboard-list"></i>
+            {!sidebarCollapsed && <span> Orders</span>}
           </button>
           <button
             className={`nav-item ${currentPage === "products" ? "active" : ""}`}
             onClick={() => setCurrentPage("products")}
+            title="Products"
           >
-            <i className="fas fa-box"></i> Products
+            <i className="fas fa-box"></i>
+            {!sidebarCollapsed && <span> Products</span>}
           </button>
         </nav>
       </div>
 
       {/* Main Content */}
-      <div className="main-content">{renderContent()}</div>
+      <div
+        className={`main-content ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}
+      >
+        {renderContent()}
+      </div>
     </div>
   );
 }

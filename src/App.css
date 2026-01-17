@@ -7,23 +7,67 @@
 /* Sidebar */
 .sidebar {
   width: 250px;
-  background-color: #0f172a; /* Changed from #1f2937 */
+  background-color: #0f172a;
   color: white;
   padding: 0;
   position: fixed;
   height: 100vh;
   left: 0;
   top: 0;
+  transition: width 0.3s ease;
+  overflow: visible;
+  z-index: 100;
+}
+
+.sidebar.collapsed {
+  width: 70px;
 }
 
 .sidebar-header {
   padding: 30px 20px;
-  border-bottom: 1px solid #1e293b; /* Changed from #374151 */
+  border-bottom: 1px solid #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar.collapsed .sidebar-header {
+  padding: 30px 10px;
+  text-align: center;
 }
 
 .sidebar-header h2 {
   margin: 0;
   font-size: 24px;
+  transition: all 0.3s ease;
+}
+
+.sidebar.collapsed .sidebar-header h2 {
+  font-size: 20px;
+}
+
+/* Sidebar toggle button */
+.sidebar-toggle {
+  position: absolute;
+  top: 35px;
+  right: -15px;
+  width: 30px;
+  height: 30px;
+  background-color: #3b82f6;
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.sidebar-toggle:hover {
+  background-color: #2563eb;
+  transform: scale(1.1);
 }
 
 .sidebar-nav {
@@ -41,15 +85,29 @@
   cursor: pointer;
   transition: all 0.2s;
   border-left: 3px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar.collapsed .nav-item {
+  padding: 15px 0;
+  justify-content: center;
+}
+
+.nav-item i {
+  min-width: 20px;
+  text-align: center;
 }
 
 .nav-item:hover {
-  background-color: #1e293b; /* Changed from #374151 */
+  background-color: #1e293b;
   color: white;
 }
 
 .nav-item.active {
-  background-color: #1e293b; /* Changed from #374151 */
+  background-color: #1e293b;
   color: white;
   border-left: 3px solid #3b82f6;
 }
@@ -59,8 +117,13 @@
   margin-left: 250px;
   flex: 1;
   padding: 30px;
-  background-color: #f8fafc; /* Changed from #f3f4f6 */
+  background-color: #f8fafc;
   min-height: 100vh;
+  transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: 70px;
 }
 
 .page-title {
