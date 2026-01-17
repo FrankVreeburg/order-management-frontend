@@ -2,6 +2,18 @@ import { useState, useEffect } from "react";
 import "./App.css";
 
 function App() {
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isEditingProduct, setIsEditingProduct] = useState(false);
+  const [editProductForm, setEditProductForm] = useState({
+    name: "",
+    stock: "",
+    eanCode: "",
+    description: "",
+    category: "",
+    supplier: "",
+    price: "",
+    minStock: "",
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
@@ -58,7 +70,7 @@ function App() {
     e.preventDefault();
 
     if (!newProductName || !newProductStock) {
-      alert("Please fill in all fields");
+      alert("Please fill in all fields and stock");
       return;
     }
 
@@ -70,6 +82,12 @@ function App() {
       body: JSON.stringify({
         name: newProductName,
         stock: parseInt(newProductStock),
+        eanCode: "",
+        description: "",
+        category: "",
+        supplier: "",
+        price: 0,
+        minStock: 0,
       }),
     })
       .then((response) => response.json())
@@ -82,6 +100,50 @@ function App() {
       .catch((error) => {
         console.error("Error adding product:", error);
         alert("Failed to add product");
+      });
+  };
+
+  const viewProductDetails = (product) => {
+    setSelectedProduct(product);
+    setIsEditingProduct(false);
+  };
+
+  const startEditingProduct = () => {
+    setEditProductForm({
+      name: selectedProduct.name,
+      stock: selectedProduct.stock,
+      eanCode: selectedProduct.eanCode || "",
+      description: selectedProduct.description || "",
+      category: selectedProduct.category || "",
+      supplier: selectedProduct.supplier || "",
+      price: selectedProduct.price || "",
+      minStock: selectedProduct.minStock || "",
+    });
+    setIsEditingProduct(true);
+  };
+
+  const saveProductChanges = () => {
+    fetch(`http://localhost:3000/products/${selectedProduct.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(editProductForm),
+    })
+      .then((response) => response.json())
+      .then((updatedProduct) => {
+        setProducts(
+          products.map((p) =>
+            p.id === updatedProduct.id ? updatedProduct : p,
+          ),
+        );
+        setSelectedProduct(updatedProduct);
+        setIsEditingProduct(false);
+        alert("Product updated successfully!");
+      })
+      .catch((error) => {
+        console.error("Error updating product:", error);
+        alert("Failed to update product");
       });
   };
 
@@ -144,6 +206,104 @@ function App() {
         order.customerName.toLowerCase().includes(orderSearch.toLowerCase()) ||
         order.productName.toLowerCase().includes(orderSearch.toLowerCase()),
     );
+  };
+
+  const exportOrdersToCSV = () => {
+    // Get the orders to export (respects current filter and search)
+    const ordersToExport = getSearchedAndFilteredOrders();
+
+    if (ordersToExport.length === 0) {
+      alert("No orders to export");
+      return;
+    }
+
+    // CSV Headers
+    const headers = [
+      "Order ID",
+      "Customer Name",
+      "Product Name",
+      "Quantity",
+      "Status",
+      "Created Date",
+    ];
+
+    // Convert orders to CSV rows
+    const rows = ordersToExport.map((order) => [
+      order.id,
+      order.customerName,
+      order.productName,
+      order.quantity,
+      order.status,
+      new Date(order.createdAt).toLocaleString(),
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.join(",")),
+    ].join("\n");
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `orders_${new Date().toISOString().split("T")[0]}.csv`,
+    );
+    link.style.visibility = "hidden";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    alert(`Exported ${ordersToExport.length} orders successfully!`);
+  };
+
+  const exportProductsToCSV = () => {
+    // Get the products to export (respects current search)
+    const productsToExport = getSearchedProducts();
+
+    if (productsToExport.length === 0) {
+      alert("No products to export");
+      return;
+    }
+
+    // CSV Headers
+    const headers = ["Product ID", "Product Name", "Stock Level"];
+
+    // Convert products to CSV rows
+    const rows = productsToExport.map((product) => [
+      product.id,
+      product.name,
+      product.stock,
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.join(",")),
+    ].join("\n");
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `products_${new Date().toISOString().split("T")[0]}.csv`,
+    );
+    link.style.visibility = "hidden";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    alert(`Exported ${productsToExport.length} products successfully!`);
   };
 
   // Render different content based on selected page
@@ -284,7 +444,25 @@ function App() {
   // Orders page
   const renderOrdersPage = () => (
     <>
-      <h1 className="page-title">Orders Management</h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "30px",
+        }}
+      >
+        <h1 className="page-title" style={{ margin: 0 }}>
+          <i className="fas fa-clipboard-list"></i> Orders Management
+        </h1>
+        <button
+          onClick={exportOrdersToCSV}
+          className="button"
+          style={{ display: "flex", alignItems: "center", gap: "8px" }}
+        >
+          <i className="fas fa-download"></i> Export to CSV
+        </button>
+      </div>
 
       <div className="section">
         <div className="card">
@@ -396,7 +574,25 @@ function App() {
   // Products page
   const renderProductsPage = () => (
     <>
-      <h1 className="page-title">Products Management</h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "30px",
+        }}
+      >
+        <h1 className="page-title" style={{ margin: 0 }}>
+          <i className="fas fa-box"></i> Products Management
+        </h1>
+        <button
+          onClick={exportProductsToCSV}
+          className="button"
+          style={{ display: "flex", alignItems: "center", gap: "8px" }}
+        >
+          <i className="fas fa-download"></i> Export to CSV
+        </button>
+      </div>
 
       {/* Add Product Form */}
       <div className="section">
@@ -500,9 +696,22 @@ function App() {
               <tbody>
                 {getSearchedProducts().map((product) => (
                   <tr key={product.id} className="table-row">
-                    <td>{product.id}</td>
-                    <td>{product.name}</td>
-                    <td>
+                    <td
+                      onClick={() => viewProductDetails(product)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {product.id}
+                    </td>
+                    <td
+                      onClick={() => viewProductDetails(product)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {product.name}
+                    </td>
+                    <td
+                      onClick={() => viewProductDetails(product)}
+                      style={{ cursor: "pointer" }}
+                    >
                       {editingProductId === product.id ? (
                         <div
                           style={{
@@ -510,6 +719,7 @@ function App() {
                             gap: "10px",
                             alignItems: "center",
                           }}
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <input
                             type="number"
@@ -554,17 +764,18 @@ function App() {
                         </span>
                       )}
                     </td>
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       {editingProductId !== product.id && (
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setEditingProductId(product.id);
                             setEditingStock(product.stock);
                           }}
                           className="button"
                           style={{ padding: "6px 12px", fontSize: "12px" }}
                         >
-                          <i className="fas fa-edit"></i> Edit Stock
+                          <i className="fas fa-edit"></i> Quick Edit
                         </button>
                       )}
                     </td>
@@ -638,6 +849,267 @@ function App() {
         className={`main-content ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}
       >
         {renderContent()}
+        {/* Product Detail Modal */}
+        {selectedProduct && (
+          <div
+            className="modal-overlay"
+            onClick={() => setSelectedProduct(null)}
+          >
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>
+                  <i className="fas fa-box"></i> Product Details
+                </h2>
+                <button
+                  className="modal-close"
+                  onClick={() => setSelectedProduct(null)}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+
+              <div className="modal-body">
+                {isEditingProduct ? (
+                  // Edit Mode
+                  <div className="product-form">
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>
+                          <strong>Product Name</strong>
+                        </label>
+                        <input
+                          type="text"
+                          value={editProductForm.name}
+                          onChange={(e) =>
+                            setEditProductForm({
+                              ...editProductForm,
+                              name: e.target.value,
+                            })
+                          }
+                          className="form-input"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>
+                          <strong>EAN Code</strong>
+                        </label>
+                        <input
+                          type="text"
+                          value={editProductForm.eanCode}
+                          onChange={(e) =>
+                            setEditProductForm({
+                              ...editProductForm,
+                              eanCode: e.target.value,
+                            })
+                          }
+                          className="form-input"
+                          placeholder="e.g., 8712345678901"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>
+                          <strong>Category</strong>
+                        </label>
+                        <input
+                          type="text"
+                          value={editProductForm.category}
+                          onChange={(e) =>
+                            setEditProductForm({
+                              ...editProductForm,
+                              category: e.target.value,
+                            })
+                          }
+                          className="form-input"
+                          placeholder="e.g., Widgets"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>
+                          <strong>Supplier</strong>
+                        </label>
+                        <input
+                          type="text"
+                          value={editProductForm.supplier}
+                          onChange={(e) =>
+                            setEditProductForm({
+                              ...editProductForm,
+                              supplier: e.target.value,
+                            })
+                          }
+                          className="form-input"
+                          placeholder="e.g., ABC Supplies"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>
+                        <strong>Description</strong>
+                      </label>
+                      <textarea
+                        value={editProductForm.description}
+                        onChange={(e) =>
+                          setEditProductForm({
+                            ...editProductForm,
+                            description: e.target.value,
+                          })
+                        }
+                        className="form-input"
+                        rows="3"
+                        placeholder="Product description..."
+                      />
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>
+                          <strong>Stock Level</strong>
+                        </label>
+                        <input
+                          type="number"
+                          value={editProductForm.stock}
+                          onChange={(e) =>
+                            setEditProductForm({
+                              ...editProductForm,
+                              stock: e.target.value,
+                            })
+                          }
+                          className="form-input"
+                          min="0"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>
+                          <strong>Minimum Stock</strong>
+                        </label>
+                        <input
+                          type="number"
+                          value={editProductForm.minStock}
+                          onChange={(e) =>
+                            setEditProductForm({
+                              ...editProductForm,
+                              minStock: e.target.value,
+                            })
+                          }
+                          className="form-input"
+                          min="0"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>
+                          <strong>Price</strong>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editProductForm.price}
+                          onChange={(e) =>
+                            setEditProductForm({
+                              ...editProductForm,
+                              price: e.target.value,
+                            })
+                          }
+                          className="form-input"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="modal-actions">
+                      <button
+                        onClick={saveProductChanges}
+                        className="button"
+                        style={{ marginRight: "10px" }}
+                      >
+                        <i className="fas fa-save"></i> Save Changes
+                      </button>
+                      <button
+                        onClick={() => setIsEditingProduct(false)}
+                        className="button"
+                        style={{ backgroundColor: "#6b7280" }}
+                      >
+                        <i className="fas fa-times"></i> Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // View Mode
+                  <div className="product-details">
+                    <div className="detail-section">
+                      <h3>Basic Information</h3>
+                      <div className="detail-grid">
+                        <div className="detail-item">
+                          <label>Product ID:</label>
+                          <span>#{selectedProduct.id}</span>
+                        </div>
+                        <div className="detail-item">
+                          <label>Product Name:</label>
+                          <span>{selectedProduct.name}</span>
+                        </div>
+                        <div className="detail-item">
+                          <label>EAN Code:</label>
+                          <span>{selectedProduct.eanCode || "Not set"}</span>
+                        </div>
+                        <div className="detail-item">
+                          <label>Category:</label>
+                          <span>{selectedProduct.category || "Not set"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="detail-section">
+                      <h3>Description</h3>
+                      <p>
+                        {selectedProduct.description ||
+                          "No description available"}
+                      </p>
+                    </div>
+
+                    <div className="detail-section">
+                      <h3>Inventory & Pricing</h3>
+                      <div className="detail-grid">
+                        <div className="detail-item">
+                          <label>Current Stock:</label>
+                          <span
+                            className={`badge ${selectedProduct.stock > 50 ? "badge-green" : "badge-orange"}`}
+                          >
+                            {selectedProduct.stock} units
+                          </span>
+                        </div>
+                        <div className="detail-item">
+                          <label>Minimum Stock:</label>
+                          <span>{selectedProduct.minStock || 0} units</span>
+                        </div>
+                        <div className="detail-item">
+                          <label>Price:</label>
+                          <span>
+                            $
+                            {selectedProduct.price
+                              ? selectedProduct.price.toFixed(2)
+                              : "0.00"}
+                          </span>
+                        </div>
+                        <div className="detail-item">
+                          <label>Supplier:</label>
+                          <span>{selectedProduct.supplier || "Not set"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="modal-actions">
+                      <button onClick={startEditingProduct} className="button">
+                        <i className="fas fa-edit"></i> Edit Product
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
