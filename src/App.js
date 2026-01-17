@@ -306,6 +306,259 @@ function App() {
     alert(`Exported ${productsToExport.length} products successfully!`);
   };
 
+  const downloadProductTemplate = () => {
+    const headers = [
+      "name",
+      "stock",
+      "eanCode",
+      "description",
+      "category",
+      "supplier",
+      "price",
+      "minStock",
+    ];
+    const exampleRow = [
+      "Example Widget",
+      "100",
+      "8712345678903",
+      "A great product",
+      "Widgets",
+      "ABC Corp",
+      "29.99",
+      "20",
+    ];
+
+    const csvContent = [headers.join(","), exampleRow.join(",")].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", "product_import_template.csv");
+    link.style.visibility = "hidden";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleProductFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      parseAndImportProducts(text);
+    };
+    reader.readAsText(file);
+
+    // Reset file input
+    event.target.value = "";
+  };
+
+  const parseAndImportProducts = (csvText) => {
+    const lines = csvText.split("\n").filter((line) => line.trim());
+
+    if (lines.length < 2) {
+      alert("CSV file is empty or invalid");
+      return;
+    }
+
+    const headers = lines[0].split(",").map((h) => h.trim());
+    const requiredHeaders = ["name", "stock"];
+
+    // Check if required headers exist
+    const hasRequired = requiredHeaders.every((h) => headers.includes(h));
+    if (!hasRequired) {
+      alert('CSV must have at least "name" and "stock" columns');
+      return;
+    }
+
+    const productsToImport = [];
+
+    // Parse each row
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(",").map((v) => v.trim());
+      const product = {};
+
+      headers.forEach((header, index) => {
+        product[header] = values[index] || "";
+      });
+
+      // Validate required fields
+      if (!product.name || !product.stock) {
+        console.warn(`Skipping row ${i + 1}: missing name or stock`);
+        continue;
+      }
+
+      productsToImport.push({
+        name: product.name,
+        stock: parseInt(product.stock) || 0,
+        eanCode: product.eanCode || "",
+        description: product.description || "",
+        category: product.category || "",
+        supplier: product.supplier || "",
+        price: parseFloat(product.price) || 0,
+        minStock: parseInt(product.minStock) || 0,
+      });
+    }
+
+    if (productsToImport.length === 0) {
+      alert("No valid products found in CSV");
+      return;
+    }
+
+    // Import products one by one
+    let imported = 0;
+    let failed = 0;
+
+    const importNext = (index) => {
+      if (index >= productsToImport.length) {
+        alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
+        fetchProducts(); // Refresh the product list
+        return;
+      }
+
+      fetch("http://localhost:3000/products", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(productsToImport[index]),
+      })
+        .then((response) => response.json())
+        .then(() => {
+          imported++;
+          importNext(index + 1);
+        })
+        .catch((error) => {
+          console.error("Error importing product:", error);
+          failed++;
+          importNext(index + 1);
+        });
+    };
+
+    importNext(0);
+  };
+
+  const downloadOrderTemplate = () => {
+    const headers = ["productId", "quantity", "customerName"];
+    const exampleRow = ["1", "10", "John Doe"];
+
+    const csvContent = [headers.join(","), exampleRow.join(",")].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", "order_import_template.csv");
+    link.style.visibility = "hidden";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleOrderFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      parseAndImportOrders(text);
+    };
+    reader.readAsText(file);
+
+    // Reset file input
+    event.target.value = "";
+  };
+
+  const parseAndImportOrders = (csvText) => {
+    const lines = csvText.split("\n").filter((line) => line.trim());
+
+    if (lines.length < 2) {
+      alert("CSV file is empty or invalid");
+      return;
+    }
+
+    const headers = lines[0].split(",").map((h) => h.trim());
+    const requiredHeaders = ["productId", "quantity", "customerName"];
+
+    // Check if required headers exist
+    const hasRequired = requiredHeaders.every((h) => headers.includes(h));
+    if (!hasRequired) {
+      alert(
+        'CSV must have "productId", "quantity", and "customerName" columns',
+      );
+      return;
+    }
+
+    const ordersToImport = [];
+
+    // Parse each row
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(",").map((v) => v.trim());
+      const order = {};
+
+      headers.forEach((header, index) => {
+        order[header] = values[index] || "";
+      });
+
+      // Validate required fields
+      if (!order.productId || !order.quantity || !order.customerName) {
+        console.warn(`Skipping row ${i + 1}: missing required fields`);
+        continue;
+      }
+
+      ordersToImport.push({
+        productId: parseInt(order.productId),
+        quantity: parseInt(order.quantity),
+        customerName: order.customerName,
+      });
+    }
+
+    if (ordersToImport.length === 0) {
+      alert("No valid orders found in CSV");
+      return;
+    }
+
+    // Import orders one by one
+    let imported = 0;
+    let failed = 0;
+
+    const importNext = (index) => {
+      if (index >= ordersToImport.length) {
+        alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
+        fetchOrders(); // Refresh the order list
+        return;
+      }
+
+      fetch("http://localhost:3000/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(ordersToImport[index]),
+      })
+        .then((response) => response.json())
+        .then(() => {
+          imported++;
+          importNext(index + 1);
+        })
+        .catch((error) => {
+          console.error("Error importing order:", error);
+          failed++;
+          importNext(index + 1);
+        });
+    };
+
+    importNext(0);
+  };
+
   // Render different content based on selected page
   const renderContent = () => {
     switch (currentPage) {
@@ -462,6 +715,52 @@ function App() {
         >
           <i className="fas fa-download"></i> Export to CSV
         </button>
+      </div>
+
+      {/* Import Orders from CSV */}
+      <div className="section">
+        <h2 className="section-title">
+          <i className="fas fa-upload"></i> Import Orders from CSV
+        </h2>
+        <div className="card">
+          <p style={{ marginBottom: "15px", color: "#6b7280" }}>
+            Upload a CSV file with columns:{" "}
+            <strong>productId, quantity, customerName</strong>
+          </p>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleOrderFileUpload}
+              id="order-csv-upload"
+              style={{ display: "none" }}
+            />
+            <label
+              htmlFor="order-csv-upload"
+              className="button"
+              style={{
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <i className="fas fa-file-csv"></i> Choose CSV File
+            </label>
+            <button
+              onClick={downloadOrderTemplate}
+              className="button"
+              style={{
+                backgroundColor: "#10b981",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <i className="fas fa-download"></i> Download Template
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="section">
@@ -655,6 +954,55 @@ function App() {
               Add Product
             </button>
           </form>
+        </div>
+      </div>
+
+      {/* Import Products from CSV */}
+      <div className="section">
+        <h2 className="section-title">
+          <i className="fas fa-upload"></i> Import Products from CSV
+        </h2>
+        <div className="card">
+          <p style={{ marginBottom: "15px", color: "#6b7280" }}>
+            Upload a CSV file with columns:{" "}
+            <strong>
+              name, stock, eanCode, description, category, supplier, price,
+              minStock
+            </strong>
+          </p>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleProductFileUpload}
+              id="product-csv-upload"
+              style={{ display: "none" }}
+            />
+            <label
+              htmlFor="product-csv-upload"
+              className="button"
+              style={{
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <i className="fas fa-file-csv"></i> Choose CSV File
+            </label>
+            <button
+              onClick={downloadProductTemplate}
+              className="button"
+              style={{
+                backgroundColor: "#10b981",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <i className="fas fa-download"></i> Download Template
+            </button>
+          </div>
         </div>
       </div>
 
