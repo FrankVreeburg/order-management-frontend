@@ -1,7 +1,42 @@
 import { useState, useEffect } from "react";
 import "./App.css";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Bar, Line, Doughnut } from "react-chartjs-2";
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+);
 
 function App() {
+  const [workers, setWorkers] = useState([]);
+  const [showAddWorkerForm, setShowAddWorkerForm] = useState(false);
+  const [newWorker, setNewWorker] = useState({
+    name: "",
+    email: "",
+    role: "Picker",
+    phone: "",
+  });
+  const [editingWorker, setEditingWorker] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isEditingProduct, setIsEditingProduct] = useState(false);
   const [editProductForm, setEditProductForm] = useState({
@@ -29,6 +64,7 @@ function App() {
   useEffect(() => {
     fetchProducts();
     fetchOrders();
+    fetchWorkers();
   }, []);
 
   const fetchProducts = () => {
@@ -43,6 +79,13 @@ function App() {
       .then((response) => response.json())
       .then((data) => setOrders(data))
       .catch((error) => console.error("Error fetching orders:", error));
+  };
+
+  const fetchWorkers = () => {
+    fetch("http://localhost:3000/workers")
+      .then((response) => response.json())
+      .then((data) => setWorkers(data))
+      .catch((error) => console.error("Error fetching workers:", error));
   };
 
   const processOrder = (orderId) => {
@@ -559,6 +602,77 @@ function App() {
     importNext(0);
   };
 
+  const addWorker = (e) => {
+    e.preventDefault();
+
+    if (!newWorker.name || !newWorker.email) {
+      alert("Name and email are required");
+      return;
+    }
+
+    fetch("http://localhost:3000/workers", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(newWorker),
+    })
+      .then((response) => response.json())
+      .then((worker) => {
+        setWorkers([...workers, worker]);
+        setNewWorker({ name: "", email: "", role: "Picker", phone: "" });
+        setShowAddWorkerForm(false);
+        alert(`Worker "${worker.name}" added successfully!`);
+      })
+      .catch((error) => {
+        console.error("Error adding worker:", error);
+        alert("Failed to add worker");
+      });
+  };
+
+  const updateWorker = (workerId, updates) => {
+    fetch(`http://localhost:3000/workers/${workerId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(updates),
+    })
+      .then((response) => response.json())
+      .then((updatedWorker) => {
+        setWorkers(workers.map((w) => (w.id === workerId ? updatedWorker : w)));
+        setEditingWorker(null);
+        alert("Worker updated successfully!");
+      })
+      .catch((error) => {
+        console.error("Error updating worker:", error);
+        alert("Failed to update worker");
+      });
+  };
+
+  const deleteWorker = (workerId) => {
+    if (!window.confirm("Are you sure you want to delete this worker?")) {
+      return;
+    }
+
+    fetch(`http://localhost:3000/workers/${workerId}`, {
+      method: "DELETE",
+    })
+      .then((response) => response.json())
+      .then(() => {
+        setWorkers(workers.filter((w) => w.id !== workerId));
+        alert("Worker deleted successfully!");
+      })
+      .catch((error) => {
+        console.error("Error deleting worker:", error);
+        alert("Failed to delete worker");
+      });
+  };
+
+  const toggleWorkerStatus = (workerId, currentStatus) => {
+    updateWorker(workerId, { active: !currentStatus });
+  };
+
   // Render different content based on selected page
   const renderContent = () => {
     switch (currentPage) {
@@ -568,131 +682,260 @@ function App() {
         return renderOrdersPage();
       case "products":
         return renderProductsPage();
+      case "workers":
+        return renderWorkersPage();
       default:
         return renderHomePage();
     }
   };
 
-  // Home/Overview page
-  const renderHomePage = () => (
-    <>
-      <h1 className="page-title">Dashboard Overview</h1>
+  // Home/Overview page with charts
+  const renderHomePage = () => {
+    // Calculate stats
+    const totalProducts = products.length;
+    const totalOrders = orders.length;
+    const pendingOrders = orders.filter((o) => o.status === "pending").length;
+    const processedOrders = orders.filter(
+      (o) => o.status === "processed",
+    ).length;
+    const lowStockItems = getLowStockProducts().length;
+    const activeWorkers = workers.filter((w) => w.active).length;
 
-      {/* Stats Cards */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon">
-            <i className="fas fa-box" style={{ color: "#3b82f6" }}></i>
-          </div>
-          <div className="stat-content">
-            <div className="stat-value">{products.length}</div>
-            <div className="stat-label">Total Products</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">
-            <i
-              className="fas fa-clipboard-list"
-              style={{ color: "#10b981" }}
-            ></i>
-          </div>
-          <div className="stat-content">
-            <div className="stat-value">{orders.length}</div>
-            <div className="stat-label">Total Orders</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">
-            <i className="fas fa-clock" style={{ color: "#f59e0b" }}></i>
-          </div>
-          <div className="stat-content">
-            <div className="stat-value">
-              {orders.filter((o) => o.status === "pending").length}
+    // Orders by status chart data
+    const orderStatusData = {
+      labels: ["Pending", "Processed"],
+      datasets: [
+        {
+          label: "Orders",
+          data: [pendingOrders, processedOrders],
+          backgroundColor: ["#f59e0b", "#10b981"],
+          borderWidth: 0,
+        },
+      ],
+    };
+
+    // Stock levels chart data (top 10 products)
+    const stockData = {
+      labels: products.slice(0, 10).map((p) => p.name),
+      datasets: [
+        {
+          label: "Stock Level",
+          data: products.slice(0, 10).map((p) => p.stock),
+          backgroundColor: products
+            .slice(0, 10)
+            .map((p) => (p.stock > 50 ? "#10b981" : "#f59e0b")),
+          borderWidth: 0,
+        },
+      ],
+    };
+
+    // Recent orders trend (last 7 days mock data - you'd calculate this from real dates)
+    const orderTrendData = {
+      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      datasets: [
+        {
+          label: "Orders",
+          data: [12, 19, 15, 25, 22, 30, orders.length], // Mock data, replace with real calculation
+          borderColor: "#3b82f6",
+          backgroundColor: "rgba(59, 130, 246, 0.1)",
+          tension: 0.4,
+          fill: true,
+        },
+      ],
+    };
+
+    // Workers by role
+    const workersByRole = workers.reduce((acc, worker) => {
+      acc[worker.role] = (acc[worker.role] || 0) + 1;
+      return acc;
+    }, {});
+
+    const workersRoleData = {
+      labels: Object.keys(workersByRole),
+      datasets: [
+        {
+          data: Object.values(workersByRole),
+          backgroundColor: ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"],
+          borderWidth: 0,
+        },
+      ],
+    };
+
+    const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "bottom",
+        },
+      },
+    };
+
+    return (
+      <>
+        <h1 className="page-title">
+          <i className="fas fa-chart-line"></i> Dashboard Overview
+        </h1>
+
+        {/* Stats Cards */}
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-icon">
+              <i className="fas fa-box" style={{ color: "#3b82f6" }}></i>
             </div>
-            <div className="stat-label">Pending Orders</div>
+            <div className="stat-content">
+              <div className="stat-value">{totalProducts}</div>
+              <div className="stat-label">Total Products</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">
+              <i
+                className="fas fa-clipboard-list"
+                style={{ color: "#10b981" }}
+              ></i>
+            </div>
+            <div className="stat-content">
+              <div className="stat-value">{totalOrders}</div>
+              <div className="stat-label">Total Orders</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">
+              <i className="fas fa-clock" style={{ color: "#f59e0b" }}></i>
+            </div>
+            <div className="stat-content">
+              <div className="stat-value">{pendingOrders}</div>
+              <div className="stat-label">Pending Orders</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">
+              <i className="fas fa-users" style={{ color: "#8b5cf6" }}></i>
+            </div>
+            <div className="stat-content">
+              <div className="stat-value">{activeWorkers}</div>
+              <div className="stat-label">Active Workers</div>
+            </div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon">
-            <i
-              className="fas fa-exclamation-triangle"
-              style={{ color: "#ef4444" }}
-            ></i>
-          </div>
-          <div className="stat-content">
-            <div className="stat-value">{getLowStockProducts().length}</div>
-            <div className="stat-label">Low Stock Items</div>
-          </div>
-        </div>
-      </div>
 
-      {/* Low Stock Alerts */}
-      {getLowStockProducts().length > 0 && (
+        {/* Low Stock Alerts */}
+        {lowStockItems > 0 && (
+          <div className="section">
+            <h2 className="section-title">
+              <i className="fas fa-exclamation-triangle"></i> Low Stock Alerts
+            </h2>
+            <div
+              className="card"
+              style={{
+                backgroundColor: "#fef3c7",
+                borderLeft: "4px solid #f59e0b",
+              }}
+            >
+              <p style={{ marginTop: 0, fontWeight: "600", color: "#92400e" }}>
+                The following products need restocking:
+              </p>
+              <ul style={{ color: "#92400e" }}>
+                {getLowStockProducts().map((product) => (
+                  <li key={product.id}>
+                    <strong>{product.name}</strong> - Only {product.stock} units
+                    remaining
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Charts Section */}
+        <div className="charts-grid">
+          {/* Orders Status Chart */}
+          <div className="chart-card">
+            <h3 className="chart-title">
+              <i className="fas fa-chart-pie"></i> Orders by Status
+            </h3>
+            <div style={{ height: "250px" }}>
+              <Doughnut data={orderStatusData} options={chartOptions} />
+            </div>
+          </div>
+
+          {/* Stock Levels Chart */}
+          <div className="chart-card">
+            <h3 className="chart-title">
+              <i className="fas fa-chart-bar"></i> Product Stock Levels
+            </h3>
+            <div style={{ height: "250px" }}>
+              <Bar data={stockData} options={chartOptions} />
+            </div>
+          </div>
+
+          {/* Orders Trend Chart */}
+          <div className="chart-card">
+            <h3 className="chart-title">
+              <i className="fas fa-chart-line"></i> Orders Trend (Last 7 Days)
+            </h3>
+            <div style={{ height: "250px" }}>
+              <Line data={orderTrendData} options={chartOptions} />
+            </div>
+          </div>
+
+          {/* Workers by Role Chart */}
+          <div className="chart-card">
+            <h3 className="chart-title">
+              <i className="fas fa-users-cog"></i> Workers by Role
+            </h3>
+            <div style={{ height: "250px" }}>
+              <Doughnut data={workersRoleData} options={chartOptions} />
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Orders */}
         <div className="section">
-          <h2 className="section-title">Low Stock Alerts</h2>
-          <div
-            className="card"
-            style={{
-              backgroundColor: "#fef3c7",
-              borderLeft: "4px solid #f59e0b",
-            }}
-          >
-            <p style={{ marginTop: 0, fontWeight: "600", color: "#92400e" }}>
-              The following products need restocking:
-            </p>
-            <ul style={{ color: "#92400e" }}>
-              {getLowStockProducts().map((product) => (
-                <li key={product.id}>
-                  <strong>{product.name}</strong> - Only {product.stock} units
-                  remaining
-                </li>
-              ))}
-            </ul>
+          <h2 className="section-title">
+            <i className="fas fa-history"></i> Recent Orders
+          </h2>
+          <div className="card">
+            {orders.length === 0 ? (
+              <p className="empty-state">No orders yet.</p>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr className="table-header">
+                    <th>Order ID</th>
+                    <th>Customer</th>
+                    <th>Product</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders
+                    .slice(-5)
+                    .reverse()
+                    .map((order) => (
+                      <tr key={order.id} className="table-row">
+                        <td>#{order.id}</td>
+                        <td>{order.customerName}</td>
+                        <td>{order.productName}</td>
+                        <td>
+                          <span
+                            className={`badge ${order.status === "pending" ? "badge-orange" : "badge-green"}`}
+                          >
+                            {order.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
-      )}
-
-      {/* Recent Orders */}
-      <div className="section">
-        <h2 className="section-title">Recent Orders</h2>
-        <div className="card">
-          {orders.length === 0 ? (
-            <p className="empty-state">No orders yet.</p>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr className="table-header">
-                  <th>Order ID</th>
-                  <th>Customer</th>
-                  <th>Product</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders
-                  .slice(-5)
-                  .reverse()
-                  .map((order) => (
-                    <tr key={order.id} className="table-row">
-                      <td>#{order.id}</td>
-                      <td>{order.customerName}</td>
-                      <td>{order.productName}</td>
-                      <td>
-                        <span
-                          className={`badge ${order.status === "pending" ? "badge-orange" : "badge-green"}`}
-                        >
-                          {order.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </>
-  );
+      </>
+    );
+  };
 
   // Orders page
   const renderOrdersPage = () => (
@@ -1137,6 +1380,280 @@ function App() {
     </>
   );
 
+  // Workers page
+  const renderWorkersPage = () => (
+    <>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "30px",
+        }}
+      >
+        <h1 className="page-title" style={{ margin: 0 }}>
+          <i className="fas fa-users"></i> Workers Management
+        </h1>
+        <button
+          onClick={() => setShowAddWorkerForm(!showAddWorkerForm)}
+          className="button"
+          style={{ display: "flex", alignItems: "center", gap: "8px" }}
+        >
+          <i className={`fas fa-${showAddWorkerForm ? "times" : "plus"}`}></i>
+          {showAddWorkerForm ? "Cancel" : "Add Worker"}
+        </button>
+      </div>
+
+      {/* Add Worker Form */}
+      {showAddWorkerForm && (
+        <div className="section">
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>Add New Worker</h3>
+            <form onSubmit={addWorker}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Name *</label>
+                  <input
+                    type="text"
+                    value={newWorker.name}
+                    onChange={(e) =>
+                      setNewWorker({ ...newWorker, name: e.target.value })
+                    }
+                    className="form-input"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Email *</label>
+                  <input
+                    type="email"
+                    value={newWorker.email}
+                    onChange={(e) =>
+                      setNewWorker({ ...newWorker, email: e.target.value })
+                    }
+                    className="form-input"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Role</label>
+                  <select
+                    value={newWorker.role}
+                    onChange={(e) =>
+                      setNewWorker({ ...newWorker, role: e.target.value })
+                    }
+                    className="form-input"
+                  >
+                    <option value="Picker">Picker</option>
+                    <option value="Packer">Packer</option>
+                    <option value="Supervisor">Supervisor</option>
+                    <option value="Manager">Manager</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Phone</label>
+                  <input
+                    type="tel"
+                    value={newWorker.phone}
+                    onChange={(e) =>
+                      setNewWorker({ ...newWorker, phone: e.target.value })
+                    }
+                    className="form-input"
+                    placeholder="555-0100"
+                  />
+                </div>
+              </div>
+              <button type="submit" className="button">
+                <i className="fas fa-save"></i> Add Worker
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Workers List */}
+      <div className="section">
+        <div className="card">
+          {workers.length === 0 ? (
+            <p className="empty-state">
+              No workers yet. Add your first worker above!
+            </p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr className="table-header">
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Phone</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workers.map((worker) => (
+                  <tr key={worker.id} className="table-row">
+                    {editingWorker?.id === worker.id ? (
+                      // Edit mode
+                      <>
+                        <td>{worker.id}</td>
+                        <td>
+                          <input
+                            type="text"
+                            value={editingWorker.name}
+                            onChange={(e) =>
+                              setEditingWorker({
+                                ...editingWorker,
+                                name: e.target.value,
+                              })
+                            }
+                            className="form-input"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="email"
+                            value={editingWorker.email}
+                            onChange={(e) =>
+                              setEditingWorker({
+                                ...editingWorker,
+                                email: e.target.value,
+                              })
+                            }
+                            className="form-input"
+                          />
+                        </td>
+                        <td>
+                          <select
+                            value={editingWorker.role}
+                            onChange={(e) =>
+                              setEditingWorker({
+                                ...editingWorker,
+                                role: e.target.value,
+                              })
+                            }
+                            className="form-input"
+                          >
+                            <option value="Picker">Picker</option>
+                            <option value="Packer">Packer</option>
+                            <option value="Supervisor">Supervisor</option>
+                            <option value="Manager">Manager</option>
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            type="tel"
+                            value={editingWorker.phone}
+                            onChange={(e) =>
+                              setEditingWorker({
+                                ...editingWorker,
+                                phone: e.target.value,
+                              })
+                            }
+                            className="form-input"
+                          />
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${worker.active ? "badge-green" : "badge-orange"}`}
+                          >
+                            {worker.active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: "5px" }}>
+                            <button
+                              onClick={() =>
+                                updateWorker(worker.id, editingWorker)
+                              }
+                              className="button"
+                              style={{ padding: "6px 12px", fontSize: "12px" }}
+                            >
+                              <i className="fas fa-check"></i>
+                            </button>
+                            <button
+                              onClick={() => setEditingWorker(null)}
+                              className="button"
+                              style={{
+                                padding: "6px 12px",
+                                fontSize: "12px",
+                                backgroundColor: "#6b7280",
+                              }}
+                            >
+                              <i className="fas fa-times"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      // View mode
+                      <>
+                        <td>{worker.id}</td>
+                        <td>{worker.name}</td>
+                        <td>{worker.email}</td>
+                        <td>{worker.role}</td>
+                        <td>{worker.phone || "-"}</td>
+                        <td>
+                          <span
+                            className={`badge ${worker.active ? "badge-green" : "badge-orange"}`}
+                          >
+                            {worker.active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: "5px" }}>
+                            <button
+                              onClick={() => setEditingWorker(worker)}
+                              className="button"
+                              style={{ padding: "6px 12px", fontSize: "12px" }}
+                            >
+                              <i className="fas fa-edit"></i>
+                            </button>
+                            <button
+                              onClick={() =>
+                                toggleWorkerStatus(worker.id, worker.active)
+                              }
+                              className="button"
+                              style={{
+                                padding: "6px 12px",
+                                fontSize: "12px",
+                                backgroundColor: worker.active
+                                  ? "#f59e0b"
+                                  : "#10b981",
+                              }}
+                            >
+                              <i
+                                className={`fas fa-${worker.active ? "ban" : "check"}`}
+                              ></i>
+                            </button>
+                            <button
+                              onClick={() => deleteWorker(worker.id)}
+                              className="button"
+                              style={{
+                                padding: "6px 12px",
+                                fontSize: "12px",
+                                backgroundColor: "#ef4444",
+                              }}
+                            >
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div className="app-layout">
       {/* Sidebar */}
@@ -1188,6 +1705,14 @@ function App() {
           >
             <i className="fas fa-box"></i>
             {!sidebarCollapsed && <span> Products</span>}
+          </button>
+          <button
+            className={`nav-item ${currentPage === "workers" ? "active" : ""}`}
+            onClick={() => setCurrentPage("workers")}
+            title="Workers"
+          >
+            <i className="fas fa-users"></i>
+            {!sidebarCollapsed && <span> Workers</span>}
           </button>
         </nav>
       </div>
