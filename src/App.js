@@ -70,21 +70,54 @@ function App() {
   const fetchProducts = () => {
     fetch("http://localhost:3000/products")
       .then((response) => response.json())
-      .then((data) => setProducts(data))
+      .then((data) => {
+        // Convert database column names to camelCase AND convert types
+        const convertedData = data.map((product) => ({
+          id: product.id,
+          name: product.name,
+          stock: parseInt(product.stock) || 0,
+          eanCode: product.ean_code || "", // ← Convert column name
+          description: product.description || "",
+          category: product.category || "",
+          supplier: product.supplier || "",
+          price: parseFloat(product.price) || 0,
+          minStock: parseInt(product.min_stock) || 0, // ← Convert column name
+        }));
+        setProducts(convertedData);
+      })
       .catch((error) => console.error("Error fetching products:", error));
   };
 
   const fetchOrders = () => {
     fetch("http://localhost:3000/orders")
       .then((response) => response.json())
-      .then((data) => setOrders(data))
+      .then((data) => {
+        // Convert database column names to camelCase AND convert types
+        const convertedData = data.map((order) => ({
+          id: order.id,
+          productId: parseInt(order.product_id) || 0,
+          productName: order.product_name || "",
+          quantity: parseInt(order.quantity) || 0,
+          customerName: order.customer_name || "", // ← Convert column name
+          status: order.status || "pending",
+          createdAt: order.created_at || new Date(),
+        }));
+        setOrders(convertedData);
+      })
       .catch((error) => console.error("Error fetching orders:", error));
   };
 
   const fetchWorkers = () => {
     fetch("http://localhost:3000/workers")
       .then((response) => response.json())
-      .then((data) => setWorkers(data))
+      .then((data) => {
+        // Convert boolean values properly
+        const convertedData = data.map((worker) => ({
+          ...worker,
+          active: worker.active === true || worker.active === "true",
+        }));
+        setWorkers(convertedData);
+      })
       .catch((error) => console.error("Error fetching workers:", error));
   };
 
@@ -166,21 +199,44 @@ function App() {
   };
 
   const saveProductChanges = () => {
+    // Convert camelCase to snake_case for database
+    const dataToSend = {
+      name: editProductForm.name,
+      stock: editProductForm.stock,
+      eanCode: editProductForm.eanCode, // Backend will convert this
+      description: editProductForm.description,
+      category: editProductForm.category,
+      supplier: editProductForm.supplier,
+      price: editProductForm.price,
+      minStock: editProductForm.minStock,
+    };
+
     fetch(`http://localhost:3000/products/${selectedProduct.id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(editProductForm),
+      body: JSON.stringify(dataToSend),
     })
       .then((response) => response.json())
       .then((updatedProduct) => {
+        // Convert response back to camelCase
+        const converted = {
+          id: updatedProduct.id,
+          name: updatedProduct.name,
+          stock: parseInt(updatedProduct.stock) || 0,
+          eanCode: updatedProduct.ean_code || "",
+          description: updatedProduct.description || "",
+          category: updatedProduct.category || "",
+          supplier: updatedProduct.supplier || "",
+          price: parseFloat(updatedProduct.price) || 0,
+          minStock: parseInt(updatedProduct.min_stock) || 0,
+        };
+
         setProducts(
-          products.map((p) =>
-            p.id === updatedProduct.id ? updatedProduct : p,
-          ),
+          products.map((p) => (p.id === converted.id ? converted : p)),
         );
-        setSelectedProduct(updatedProduct);
+        setSelectedProduct(converted);
         setIsEditingProduct(false);
         alert("Product updated successfully!");
       })
