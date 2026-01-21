@@ -27,6 +27,20 @@ ChartJS.register(
   Legend,
 );
 
+// Helper function to make authenticated API requests
+const fetchWithAuth = (url, options = {}) => {
+  const token = localStorage.getItem('authToken');
+  
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': token ? `Bearer ${token}` : '',
+      'Content-Type': 'application/json'
+    }
+  });
+};
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -76,7 +90,12 @@ function App() {
   }, []);
 
   const fetchProducts = () => {
-    fetch("http://localhost:3000/products")
+    const token = localStorage.getItem('authToken');
+    fetch('http://localhost:3000/products', {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+    })
       .then((response) => response.json())
       .then((data) => {
         // Convert database column names to camelCase AND convert types
@@ -97,7 +116,12 @@ function App() {
   };
 
   const fetchOrders = () => {
-    fetch("http://localhost:3000/orders")
+    const token = localStorage.getItem('authToken');
+    fetch('http://localhost:3000/orders', {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+    })
       .then((response) => response.json())
       .then((data) => {
         // Convert database column names to camelCase AND convert types
@@ -116,7 +140,12 @@ function App() {
   };
 
   const fetchWorkers = () => {
-    fetch("http://localhost:3000/workers")
+        const token = localStorage.getItem('authToken');
+    fetch('http://localhost:3000/workers', {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+    })
       .then((response) => response.json())
       .then((data) => {
         // Convert boolean values properly
@@ -130,10 +159,13 @@ function App() {
   };
 
   const processOrder = (orderId) => {
+    const token = localStorage.getItem('authToken');
+
     fetch(`http://localhost:3000/orders/${orderId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify({ status: "processed" }),
     })
@@ -158,10 +190,13 @@ function App() {
       return;
     }
 
+    const token = localStorage.getItem('authToken');
+
     fetch("http://localhost:3000/products", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify({
         name: newProductName,
@@ -207,52 +242,53 @@ function App() {
   };
 
   const saveProductChanges = () => {
-    // Convert camelCase to snake_case for database
+    const token = localStorage.getItem('authToken');
+
     const dataToSend = {
       name: editProductForm.name,
       stock: editProductForm.stock,
-      eanCode: editProductForm.eanCode, // Backend will convert this
+      eanCode: editProductForm.eanCode,
       description: editProductForm.description,
       category: editProductForm.category,
       supplier: editProductForm.supplier,
       price: editProductForm.price,
       minStock: editProductForm.minStock,
-    };
-
-    fetch(`http://localhost:3000/products/${selectedProduct.id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(dataToSend),
-    })
-      .then((response) => response.json())
-      .then((updatedProduct) => {
-        // Convert response back to camelCase
-        const converted = {
-          id: updatedProduct.id,
-          name: updatedProduct.name,
-          stock: parseInt(updatedProduct.stock) || 0,
-          eanCode: updatedProduct.ean_code || "",
-          description: updatedProduct.description || "",
-          category: updatedProduct.category || "",
-          supplier: updatedProduct.supplier || "",
-          price: parseFloat(updatedProduct.price) || 0,
-          minStock: parseInt(updatedProduct.min_stock) || 0,
-        };
-
-        setProducts(
-          products.map((p) => (p.id === converted.id ? converted : p)),
-        );
-        setSelectedProduct(converted);
-        setIsEditingProduct(false);
-        alert("Product updated successfully!");
-      })
-      .catch((error) => {
-        console.error("Error updating product:", error);
-        alert("Failed to update product");
-      });
   };
+
+  fetch(`http://localhost:3000/products/${selectedProduct.id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify(dataToSend),
+  })
+    .then((response) => response.json())
+    .then((updatedProduct) => { 
+      const converted = { // Convert camelCase to snake_case for database
+        id: updatedProduct.id,
+        name: updatedProduct.name,
+        stock: parseInt(updatedProduct.stock) || 0,
+        eanCode: updatedProduct.ean_code || "",
+        description: updatedProduct.description || "",
+        category: updatedProduct.category || "",
+        supplier: updatedProduct.supplier || "",
+        price: parseFloat(updatedProduct.price) || 0,
+        minStock: parseInt(updatedProduct.min_stock) || 0,
+      };
+
+      setProducts(
+        products.map((p) => (p.id === converted.id ? converted : p)),
+      );
+      setSelectedProduct(converted);
+      setIsEditingProduct(false);
+      alert("Product updated successfully!");
+    })
+    .catch((error) => {
+      console.error("Error updating product:", error);
+      alert("Failed to update product");
+    });
+};
 
   const updateProductStock = (productId) => {
     if (!editingStock || editingStock < 0) {
@@ -260,10 +296,13 @@ function App() {
       return;
     }
 
+     const token = localStorage.getItem('authToken');
+
     fetch(`http://localhost:3000/products/${productId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify({ stock: parseInt(editingStock) }),
     })
@@ -528,10 +567,13 @@ function App() {
         return;
       }
 
+      const token = localStorage.getItem('authToken');
+
       fetch("http://localhost:3000/products", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`, 
         },
         body: JSON.stringify(productsToImport[index]),
       })
@@ -644,10 +686,13 @@ function App() {
         return;
       }
 
+      const token = localStorage.getItem('authToken'); 
+
       fetch("http://localhost:3000/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(ordersToImport[index]),
       })
@@ -674,10 +719,13 @@ function App() {
       return;
     }
 
+      const token = localStorage.getItem('authToken');
+
     fetch("http://localhost:3000/workers", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify(newWorker),
     })
@@ -695,10 +743,13 @@ function App() {
   };
 
   const updateWorker = (workerId, updates) => {
+    const token = localStorage.getItem('authToken');
+
     fetch(`http://localhost:3000/workers/${workerId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify(updates),
     })
@@ -719,8 +770,13 @@ function App() {
       return;
     }
 
+    const token = localStorage.getItem('authToken');
+
     fetch(`http://localhost:3000/workers/${workerId}`, {
       method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
     })
       .then((response) => response.json())
       .then(() => {
