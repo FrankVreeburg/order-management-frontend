@@ -28,6 +28,14 @@ ChartJS.register(
 );
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showLoginForm, setShowLoginForm] = useState(true); // true = login, false = register
+  const [authForm, setAuthForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+  });
   const [workers, setWorkers] = useState([]);
   const [showAddWorkerForm, setShowAddWorkerForm] = useState(false);
   const [newWorker, setNewWorker] = useState({
@@ -727,6 +735,103 @@ function App() {
 
   const toggleWorkerStatus = (workerId, currentStatus) => {
     updateWorker(workerId, { active: !currentStatus });
+  };
+
+  // Check if user is already logged in (on app load)
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      // Verify token is still valid
+      fetch("http://localhost:3000/auth/verify", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.valid) {
+            setIsAuthenticated(true);
+            setCurrentUser(data.user);
+          } else {
+            localStorage.removeItem("authToken");
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem("authToken");
+        });
+    }
+  }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch("http://localhost:3000/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: authForm.email,
+          password: authForm.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Save token to localStorage
+        localStorage.setItem("authToken", data.token);
+        setIsAuthenticated(true);
+        setCurrentUser(data.user);
+        setAuthForm({ username: "", email: "", password: "" });
+        alert(`Welcome back, ${data.user.username}!`);
+      } else {
+        alert(data.error || "Login failed");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      alert("Login failed. Please try again.");
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch("http://localhost:3000/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: authForm.username,
+          email: authForm.email,
+          password: authForm.password,
+          role: "user",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert("Account created! Please log in.");
+        setShowLoginForm(true);
+        setAuthForm({ username: "", email: "", password: "" });
+      } else {
+        alert(data.error || "Registration failed");
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      alert("Registration failed. Please try again.");
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    alert("Logged out successfully");
   };
 
   // Render different content based on selected page
@@ -1710,337 +1815,540 @@ function App() {
     </>
   );
 
-  return (
-    <div className="app-layout">
-      {/* Sidebar */}
-      <div className={`sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
-        <div className="sidebar-header">
-          {!sidebarCollapsed && (
-            <h2>
-              <i className="fas fa-warehouse"></i> OrderFlow
-            </h2>
-          )}
-          {sidebarCollapsed && (
-            <h2>
-              <i className="fas fa-warehouse"></i>
-            </h2>
-          )}
-        </div>
-
-        <button
-          className="sidebar-toggle"
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          <i
-            className={`fas fa-${sidebarCollapsed ? "angle-right" : "angle-left"}`}
-          ></i>
-        </button>
-
-        <nav className="sidebar-nav">
-          <button
-            className={`nav-item ${currentPage === "home" ? "active" : ""}`}
-            onClick={() => setCurrentPage("home")}
-            title="Home"
-          >
-            <i className="fas fa-home"></i>
-            {!sidebarCollapsed && <span> Home</span>}
-          </button>
-          <button
-            className={`nav-item ${currentPage === "orders" ? "active" : ""}`}
-            onClick={() => setCurrentPage("orders")}
-            title="Orders"
-          >
-            <i className="fas fa-clipboard-list"></i>
-            {!sidebarCollapsed && <span> Orders</span>}
-          </button>
-          <button
-            className={`nav-item ${currentPage === "products" ? "active" : ""}`}
-            onClick={() => setCurrentPage("products")}
-            title="Products"
-          >
-            <i className="fas fa-box"></i>
-            {!sidebarCollapsed && <span> Products</span>}
-          </button>
-          <button
-            className={`nav-item ${currentPage === "workers" ? "active" : ""}`}
-            onClick={() => setCurrentPage("workers")}
-            title="Workers"
-          >
-            <i className="fas fa-users"></i>
-            {!sidebarCollapsed && <span> Workers</span>}
-          </button>
-        </nav>
-      </div>
-
-      {/* Main Content */}
+  // Login/Register page
+  const renderAuthPage = () => (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      }}
+    >
       <div
-        className={`main-content ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}
+        style={{
+          backgroundColor: "white",
+          padding: "40px",
+          borderRadius: "10px",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
+          width: "100%",
+          maxWidth: "400px",
+        }}
       >
-        {renderContent()}
-        {/* Product Detail Modal */}
-        {selectedProduct && (
-          <div
-            className="modal-overlay"
-            onClick={() => setSelectedProduct(null)}
-          >
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>
-                  <i className="fas fa-box"></i> Product Details
-                </h2>
-                <button
-                  className="modal-close"
-                  onClick={() => setSelectedProduct(null)}
-                >
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
+        <h1
+          style={{
+            textAlign: "center",
+            marginBottom: "10px",
+            color: "#1f2937",
+          }}
+        >
+          <i className="fas fa-warehouse"></i> OrderFlow
+        </h1>
+        <p
+          style={{
+            textAlign: "center",
+            color: "#6b7280",
+            marginBottom: "30px",
+          }}
+        >
+          {showLoginForm ? "Welcome back!" : "Create your account"}
+        </p>
 
-              <div className="modal-body">
-                {isEditingProduct ? (
-                  // Edit Mode
-                  <div className="product-form">
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>
-                          <strong>Product Name</strong>
-                        </label>
-                        <input
-                          type="text"
-                          value={editProductForm.name}
-                          onChange={(e) =>
-                            setEditProductForm({
-                              ...editProductForm,
-                              name: e.target.value,
-                            })
-                          }
-                          className="form-input"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>
-                          <strong>EAN Code</strong>
-                        </label>
-                        <input
-                          type="text"
-                          value={editProductForm.eanCode}
-                          onChange={(e) =>
-                            setEditProductForm({
-                              ...editProductForm,
-                              eanCode: e.target.value,
-                            })
-                          }
-                          className="form-input"
-                          placeholder="e.g., 8712345678901"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>
-                          <strong>Category</strong>
-                        </label>
-                        <input
-                          type="text"
-                          value={editProductForm.category}
-                          onChange={(e) =>
-                            setEditProductForm({
-                              ...editProductForm,
-                              category: e.target.value,
-                            })
-                          }
-                          className="form-input"
-                          placeholder="e.g., Widgets"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>
-                          <strong>Supplier</strong>
-                        </label>
-                        <input
-                          type="text"
-                          value={editProductForm.supplier}
-                          onChange={(e) =>
-                            setEditProductForm({
-                              ...editProductForm,
-                              supplier: e.target.value,
-                            })
-                          }
-                          className="form-input"
-                          placeholder="e.g., ABC Supplies"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label>
-                        <strong>Description</strong>
-                      </label>
-                      <textarea
-                        value={editProductForm.description}
-                        onChange={(e) =>
-                          setEditProductForm({
-                            ...editProductForm,
-                            description: e.target.value,
-                          })
-                        }
-                        className="form-input"
-                        rows="3"
-                        placeholder="Product description..."
-                      />
-                    </div>
-
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>
-                          <strong>Stock Level</strong>
-                        </label>
-                        <input
-                          type="number"
-                          value={editProductForm.stock}
-                          onChange={(e) =>
-                            setEditProductForm({
-                              ...editProductForm,
-                              stock: e.target.value,
-                            })
-                          }
-                          className="form-input"
-                          min="0"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>
-                          <strong>Minimum Stock</strong>
-                        </label>
-                        <input
-                          type="number"
-                          value={editProductForm.minStock}
-                          onChange={(e) =>
-                            setEditProductForm({
-                              ...editProductForm,
-                              minStock: e.target.value,
-                            })
-                          }
-                          className="form-input"
-                          min="0"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>
-                          <strong>Price</strong>
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={editProductForm.price}
-                          onChange={(e) =>
-                            setEditProductForm({
-                              ...editProductForm,
-                              price: e.target.value,
-                            })
-                          }
-                          className="form-input"
-                          min="0"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="modal-actions">
-                      <button
-                        onClick={saveProductChanges}
-                        className="button"
-                        style={{ marginRight: "10px" }}
-                      >
-                        <i className="fas fa-save"></i> Save Changes
-                      </button>
-                      <button
-                        onClick={() => setIsEditingProduct(false)}
-                        className="button"
-                        style={{ backgroundColor: "#6b7280" }}
-                      >
-                        <i className="fas fa-times"></i> Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  // View Mode
-                  <div className="product-details">
-                    <div className="detail-section">
-                      <h3>Basic Information</h3>
-                      <div className="detail-grid">
-                        <div className="detail-item">
-                          <label>Product ID:</label>
-                          <span>#{selectedProduct.id}</span>
-                        </div>
-                        <div className="detail-item">
-                          <label>Product Name:</label>
-                          <span>{selectedProduct.name}</span>
-                        </div>
-                        <div className="detail-item">
-                          <label>EAN Code:</label>
-                          <span>{selectedProduct.eanCode || "Not set"}</span>
-                        </div>
-                        <div className="detail-item">
-                          <label>Category:</label>
-                          <span>{selectedProduct.category || "Not set"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="detail-section">
-                      <h3>Description</h3>
-                      <p>
-                        {selectedProduct.description ||
-                          "No description available"}
-                      </p>
-                    </div>
-
-                    <div className="detail-section">
-                      <h3>Inventory & Pricing</h3>
-                      <div className="detail-grid">
-                        <div className="detail-item">
-                          <label>Current Stock:</label>
-                          <span
-                            className={`badge ${selectedProduct.stock > 50 ? "badge-green" : "badge-orange"}`}
-                          >
-                            {selectedProduct.stock} units
-                          </span>
-                        </div>
-                        <div className="detail-item">
-                          <label>Minimum Stock:</label>
-                          <span>{selectedProduct.minStock || 0} units</span>
-                        </div>
-                        <div className="detail-item">
-                          <label>Price:</label>
-                          <span>
-                            $
-                            {selectedProduct.price
-                              ? selectedProduct.price.toFixed(2)
-                              : "0.00"}
-                          </span>
-                        </div>
-                        <div className="detail-item">
-                          <label>Supplier:</label>
-                          <span>{selectedProduct.supplier || "Not set"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="modal-actions">
-                      <button onClick={startEditingProduct} className="button">
-                        <i className="fas fa-edit"></i> Edit Product
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+        <form onSubmit={showLoginForm ? handleLogin : handleRegister}>
+          {!showLoginForm && (
+            <div style={{ marginBottom: "20px" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "5px",
+                  fontWeight: "600",
+                  color: "#374151",
+                }}
+              >
+                Username
+              </label>
+              <input
+                type="text"
+                value={authForm.username}
+                onChange={(e) =>
+                  setAuthForm({ ...authForm, username: e.target.value })
+                }
+                required={!showLoginForm}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                }}
+              />
             </div>
+          )}
+
+          <div style={{ marginBottom: "20px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "5px",
+                fontWeight: "600",
+                color: "#374151",
+              }}
+            >
+              Email
+            </label>
+            <input
+              type="email"
+              value={authForm.email}
+              onChange={(e) =>
+                setAuthForm({ ...authForm, email: e.target.value })
+              }
+              required
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
+              }}
+            />
           </div>
-        )}
+
+          <div style={{ marginBottom: "20px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "5px",
+                fontWeight: "600",
+                color: "#374151",
+              }}
+            >
+              Password
+            </label>
+            <input
+              type="password"
+              value={authForm.password}
+              onChange={(e) =>
+                setAuthForm({ ...authForm, password: e.target.value })
+              }
+              required
+              minLength={6}
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
+              }}
+            />
+            {!showLoginForm && (
+              <small style={{ color: "#6b7280" }}>Minimum 6 characters</small>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            style={{
+              width: "100%",
+              padding: "12px",
+              backgroundColor: "#3b82f6",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "16px",
+              fontWeight: "600",
+              cursor: "pointer",
+              marginBottom: "15px",
+            }}
+          >
+            {showLoginForm ? "Login" : "Register"}
+          </button>
+
+          <p
+            style={{ textAlign: "center", color: "#6b7280", fontSize: "14px" }}
+          >
+            {showLoginForm
+              ? "Don't have an account? "
+              : "Already have an account? "}
+            <button
+              type="button"
+              onClick={() => setShowLoginForm(!showLoginForm)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#3b82f6",
+                cursor: "pointer",
+                textDecoration: "underline",
+                fontSize: "14px",
+              }}
+            >
+              {showLoginForm ? "Register" : "Login"}
+            </button>
+          </p>
+        </form>
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {!isAuthenticated ? (
+        // Show login/register page if not authenticated
+        renderAuthPage()
+      ) : (
+        <div className="app-layout">
+          {/* Sidebar */}
+          <div className={`sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
+            <div className="sidebar-header">
+              {!sidebarCollapsed && (
+                <h2>
+                  <i className="fas fa-warehouse"></i> OrderFlow
+                </h2>
+              )}
+              {sidebarCollapsed && (
+                <h2>
+                  <i className="fas fa-warehouse"></i>
+                </h2>
+              )}
+            </div>
+
+            <button
+              className="sidebar-toggle"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <i
+                className={`fas fa-${sidebarCollapsed ? "angle-right" : "angle-left"}`}
+              ></i>
+            </button>
+
+            <nav className="sidebar-nav">
+              <button
+                className={`nav-item ${currentPage === "home" ? "active" : ""}`}
+                onClick={() => setCurrentPage("home")}
+                title="Home"
+              >
+                <i className="fas fa-home"></i>
+                {!sidebarCollapsed && <span> Home</span>}
+              </button>
+              <button
+                className={`nav-item ${currentPage === "orders" ? "active" : ""}`}
+                onClick={() => setCurrentPage("orders")}
+                title="Orders"
+              >
+                <i className="fas fa-clipboard-list"></i>
+                {!sidebarCollapsed && <span> Orders</span>}
+              </button>
+              <button
+                className={`nav-item ${currentPage === "products" ? "active" : ""}`}
+                onClick={() => setCurrentPage("products")}
+                title="Products"
+              >
+                <i className="fas fa-box"></i>
+                {!sidebarCollapsed && <span> Products</span>}
+              </button>
+              <button
+                className={`nav-item ${currentPage === "workers" ? "active" : ""}`}
+                onClick={() => setCurrentPage("workers")}
+                title="Workers"
+              >
+                <i className="fas fa-users"></i>
+                {!sidebarCollapsed && <span> Workers</span>}
+              </button>
+              <button
+                className="nav-item"
+                onClick={handleLogout}
+                title="Logout"
+                style={{ marginTop: "auto", borderTop: "1px solid #374151" }}
+              >
+                <i className="fas fa-sign-out-alt"></i>
+                {!sidebarCollapsed && <span> Logout</span>}
+              </button>
+            </nav>
+          </div>
+
+          {/* Main Content */}
+          <div
+            className={`main-content ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}
+          >
+            {renderContent()}
+            {/* Product Detail Modal */}
+            {selectedProduct && (
+              <div
+                className="modal-overlay"
+                onClick={() => setSelectedProduct(null)}
+              >
+                <div
+                  className="modal-content"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="modal-header">
+                    <h2>
+                      <i className="fas fa-box"></i> Product Details
+                    </h2>
+                    <button
+                      className="modal-close"
+                      onClick={() => setSelectedProduct(null)}
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  </div>
+
+                  <div className="modal-body">
+                    {isEditingProduct ? (
+                      // Edit Mode
+                      <div className="product-form">
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>
+                              <strong>Product Name</strong>
+                            </label>
+                            <input
+                              type="text"
+                              value={editProductForm.name}
+                              onChange={(e) =>
+                                setEditProductForm({
+                                  ...editProductForm,
+                                  name: e.target.value,
+                                })
+                              }
+                              className="form-input"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>
+                              <strong>EAN Code</strong>
+                            </label>
+                            <input
+                              type="text"
+                              value={editProductForm.eanCode}
+                              onChange={(e) =>
+                                setEditProductForm({
+                                  ...editProductForm,
+                                  eanCode: e.target.value,
+                                })
+                              }
+                              className="form-input"
+                              placeholder="e.g., 8712345678901"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>
+                              <strong>Category</strong>
+                            </label>
+                            <input
+                              type="text"
+                              value={editProductForm.category}
+                              onChange={(e) =>
+                                setEditProductForm({
+                                  ...editProductForm,
+                                  category: e.target.value,
+                                })
+                              }
+                              className="form-input"
+                              placeholder="e.g., Widgets"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>
+                              <strong>Supplier</strong>
+                            </label>
+                            <input
+                              type="text"
+                              value={editProductForm.supplier}
+                              onChange={(e) =>
+                                setEditProductForm({
+                                  ...editProductForm,
+                                  supplier: e.target.value,
+                                })
+                              }
+                              className="form-input"
+                              placeholder="e.g., ABC Supplies"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="form-group">
+                          <label>
+                            <strong>Description</strong>
+                          </label>
+                          <textarea
+                            value={editProductForm.description}
+                            onChange={(e) =>
+                              setEditProductForm({
+                                ...editProductForm,
+                                description: e.target.value,
+                              })
+                            }
+                            className="form-input"
+                            rows="3"
+                            placeholder="Product description..."
+                          />
+                        </div>
+
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>
+                              <strong>Stock Level</strong>
+                            </label>
+                            <input
+                              type="number"
+                              value={editProductForm.stock}
+                              onChange={(e) =>
+                                setEditProductForm({
+                                  ...editProductForm,
+                                  stock: e.target.value,
+                                })
+                              }
+                              className="form-input"
+                              min="0"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>
+                              <strong>Minimum Stock</strong>
+                            </label>
+                            <input
+                              type="number"
+                              value={editProductForm.minStock}
+                              onChange={(e) =>
+                                setEditProductForm({
+                                  ...editProductForm,
+                                  minStock: e.target.value,
+                                })
+                              }
+                              className="form-input"
+                              min="0"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>
+                              <strong>Price</strong>
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editProductForm.price}
+                              onChange={(e) =>
+                                setEditProductForm({
+                                  ...editProductForm,
+                                  price: e.target.value,
+                                })
+                              }
+                              className="form-input"
+                              min="0"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="modal-actions">
+                          <button
+                            onClick={saveProductChanges}
+                            className="button"
+                            style={{ marginRight: "10px" }}
+                          >
+                            <i className="fas fa-save"></i> Save Changes
+                          </button>
+                          <button
+                            onClick={() => setIsEditingProduct(false)}
+                            className="button"
+                            style={{ backgroundColor: "#6b7280" }}
+                          >
+                            <i className="fas fa-times"></i> Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // View Mode
+                      <div className="product-details">
+                        <div className="detail-section">
+                          <h3>Basic Information</h3>
+                          <div className="detail-grid">
+                            <div className="detail-item">
+                              <label>Product ID:</label>
+                              <span>#{selectedProduct.id}</span>
+                            </div>
+                            <div className="detail-item">
+                              <label>Product Name:</label>
+                              <span>{selectedProduct.name}</span>
+                            </div>
+                            <div className="detail-item">
+                              <label>EAN Code:</label>
+                              <span>
+                                {selectedProduct.eanCode || "Not set"}
+                              </span>
+                            </div>
+                            <div className="detail-item">
+                              <label>Category:</label>
+                              <span>
+                                {selectedProduct.category || "Not set"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="detail-section">
+                          <h3>Description</h3>
+                          <p>
+                            {selectedProduct.description ||
+                              "No description available"}
+                          </p>
+                        </div>
+
+                        <div className="detail-section">
+                          <h3>Inventory & Pricing</h3>
+                          <div className="detail-grid">
+                            <div className="detail-item">
+                              <label>Current Stock:</label>
+                              <span
+                                className={`badge ${selectedProduct.stock > 50 ? "badge-green" : "badge-orange"}`}
+                              >
+                                {selectedProduct.stock} units
+                              </span>
+                            </div>
+                            <div className="detail-item">
+                              <label>Minimum Stock:</label>
+                              <span>{selectedProduct.minStock || 0} units</span>
+                            </div>
+                            <div className="detail-item">
+                              <label>Price:</label>
+                              <span>
+                                $
+                                {selectedProduct.price
+                                  ? selectedProduct.price.toFixed(2)
+                                  : "0.00"}
+                              </span>
+                            </div>
+                            <div className="detail-item">
+                              <label>Supplier:</label>
+                              <span>
+                                {selectedProduct.supplier || "Not set"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="modal-actions">
+                          <button
+                            onClick={startEditingProduct}
+                            className="button"
+                          >
+                            <i className="fas fa-edit"></i> Edit Product
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
