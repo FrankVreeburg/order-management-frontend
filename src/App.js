@@ -27,20 +27,6 @@ ChartJS.register(
   Legend,
 );
 
-// Helper function to make authenticated API requests
-const fetchWithAuth = (url, options = {}) => {
-  const token = localStorage.getItem('authToken');
-  
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...options.headers,
-      'Authorization': token ? `Bearer ${token}` : '',
-      'Content-Type': 'application/json'
-    }
-  });
-};
-
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -82,24 +68,64 @@ function App() {
   const [currentPage, setCurrentPage] = useState("home"); // Track which page to show
   const [editingProductId, setEditingProductId] = useState(null);
   const [editingStock, setEditingStock] = useState("");
+  const [customers, setCustomers] = useState([]);
+const [users, setUsers] = useState([]);
+const [showAddCustomerForm, setShowAddCustomerForm] = useState(false);
+const [newCustomer, setNewCustomer] = useState({
+  name: '',
+  email: '',
+  phone: '',
+  company: '',
+  address: ''
+});
+const [editingCustomer, setEditingCustomer] = useState(null);
 
   useEffect(() => {
+    if (isAuthenticated) {
     fetchProducts();
     fetchOrders();
     fetchWorkers();
-  }, []);
-
-  const fetchProducts = () => {
-    const token = localStorage.getItem('authToken');
-    fetch('http://localhost:3000/products', {
-    headers: {
-      'Authorization': `Bearer ${token}`
+    fetchCustomers(); 
+    fetchUsers();
     }
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        // Convert database column names to camelCase AND convert types
-        const convertedData = data.map((product) => ({
+  }, [isAuthenticated]);
+
+  // Helper function to make authenticated API requests
+const fetchWithAuth = async (url, options = {},) => {
+  const token = localStorage.getItem('authToken');
+  
+  if (!token) {
+     // If no token, redirect to login
+    setIsAuthenticated(false);
+    throw new Error('No authentication token');
+  } 
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  
+  // If token is invalid (401 or 403), log out
+  if (response.status === 401 || response.status === 403) {
+    localStorage.removeItem('authToken');
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    alert('Session expired. Please log in again.');
+    throw new Error('Authentication failed');
+  }
+  
+  return response;
+};
+
+  const fetchProducts = async () => {
+    try{
+      const response = await fetchWithAuth('http://localhost:3000/products');
+      const data = await response.json();
+      const convertedData = data.map((product) => ({
           id: product.id,
           name: product.name,
           stock: parseInt(product.stock) || 0,
@@ -111,93 +137,173 @@ function App() {
           minStock: parseInt(product.min_stock) || 0, // ← Convert column name
         }));
         setProducts(convertedData);
-      })
-      .catch((error) => console.error("Error fetching products:", error));
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      }
   };
 
-  const fetchOrders = () => {
-    const token = localStorage.getItem('authToken');
-    fetch('http://localhost:3000/orders', {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        // Convert database column names to camelCase AND convert types
-        const convertedData = data.map((order) => ({
-          id: order.id,
-          productId: parseInt(order.product_id) || 0,
-          productName: order.product_name || "",
-          quantity: parseInt(order.quantity) || 0,
-          customerName: order.customer_name || "", // ← Convert column name
-          status: order.status || "pending",
-          createdAt: order.created_at || new Date(),
-        }));
-        setOrders(convertedData);
-      })
-      .catch((error) => console.error("Error fetching orders:", error));
-  };
+const fetchOrders = async () => {
+  try {
+    const response = await fetchWithAuth('http://localhost:3000/orders');
+    const data = await response.json();
+    const convertedData = data.map((order) => ({
+      id: order.id,
+      productId: parseInt(order.product_id) || 0,
+      productName: order.product_name || "",
+      quantity: parseInt(order.quantity) || 0,
+      customerName: order.customer_name || "",
+      status: order.status || "pending",
+      createdAt: order.created_at || new Date(),
+    }));
+    setOrders(convertedData);
+  } catch (error) {
+    console.error("Error fetching orders:", error);
+  }
+};
 
-  const fetchWorkers = () => {
-        const token = localStorage.getItem('authToken');
-    fetch('http://localhost:3000/workers', {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        // Convert boolean values properly
-        const convertedData = data.map((worker) => ({
-          ...worker,
-          active: worker.active === true || worker.active === "true",
-        }));
-        setWorkers(convertedData);
-      })
-      .catch((error) => console.error("Error fetching workers:", error));
-  };
+const fetchWorkers = async () => {
+  try {
+    const response = await fetchWithAuth('http://localhost:3000/workers');
+    const data = await response.json();
+    const convertedData = data.map((worker) => ({
+      ...worker,
+      active: worker.active === true || worker.active === "true",
+    }));
+    setWorkers(convertedData);
+  } catch (error) {
+    console.error("Error fetching workers:", error);
+  }
+};
 
-  const processOrder = (orderId) => {
-    const token = localStorage.getItem('authToken');
+const fetchCustomers = async () => {
+  try {
+    const response = await fetchWithAuth('http://localhost:3000/customers');
+    const data = await response.json();
+    setCustomers(data);
+  } catch (error) {
+    console.error("Error fetching customers:", error);
+  }
+};
 
-    fetch(`http://localhost:3000/orders/${orderId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
-      body: JSON.stringify({ status: "processed" }),
-    })
-      .then((response) => response.json())
-      .then((updatedOrder) => {
-        setOrders(
-          orders.map((order) => (order.id === orderId ? updatedOrder : order)),
-        );
-        alert(`Order #${orderId} processed successfully!`);
-      })
-      .catch((error) => {
-        console.error("Error processing order:", error);
-        alert("Failed to process order");
-      });
-  };
+const fetchUsers = async () => {
+  // Only fetch if user is admin
+  if (currentUser?.role !== 'admin') return;
+  
+  try {
+    const response = await fetchWithAuth('http://localhost:3000/users');
+    const data = await response.json();
+    setUsers(data);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+  }
+};
 
-  const addProduct = (e) => {
-    e.preventDefault();
+const addCustomer = async (e) => {
+  e.preventDefault();
 
-    if (!newProductName || !newProductStock) {
-      alert("Please fill in all fields and stock");
-      return;
-    }
+  if (!newCustomer.name) {
+    alert("Customer name is required");
+    return;
+  }
 
-    const token = localStorage.getItem('authToken');
-
-    fetch("http://localhost:3000/products", {
+  try {
+    const response = await fetchWithAuth("http://localhost:3000/customers", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
+      body: JSON.stringify(newCustomer),
+    });
+    const customer = await response.json();
+    setCustomers([...customers, customer]);
+    setNewCustomer({ name: '', email: '', phone: '', company: '', address: '' });
+    setShowAddCustomerForm(false);
+    alert(`Customer "${customer.name}" added successfully!`);
+  } catch (error) {
+    console.error("Error adding customer:", error);
+    alert("Failed to add customer");
+  }
+};
+
+const updateCustomer = async (customerId, updates) => {
+  try {
+    const response = await fetchWithAuth(
+      `http://localhost:3000/customers/${customerId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      }
+    );
+    const updatedCustomer = await response.json();
+    setCustomers(customers.map((c) => (c.id === customerId ? updatedCustomer : c)));
+    setEditingCustomer(null);
+    alert("Customer updated successfully!");
+  } catch (error) {
+    console.error("Error updating customer:", error);
+    alert("Failed to update customer");
+  }
+};
+
+const updateUser = async (userId, updates) => {
+  try {
+    const response = await fetchWithAuth(
+      `http://localhost:3000/users/${userId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      }
+    );
+    const updatedUser = await response.json();
+    setUsers(users.map((u) => (u.id === userId ? updatedUser : u)));
+    alert("User updated successfully!");
+  } catch (error) {
+    console.error("Error updating user:", error);
+    alert("Failed to update user");
+  }
+};
+
+const deleteUser = async (userId) => {
+  if (!window.confirm("Are you sure you want to delete this user?")) {
+    return;
+  }
+
+  try {
+    await fetchWithAuth(`http://localhost:3000/users/${userId}`, {
+      method: "DELETE",
+    });
+    setUsers(users.filter((u) => u.id !== userId));
+    alert("User deleted successfully!");
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    alert("Failed to delete user");
+  }
+};
+
+const processOrder = async (orderId) => {
+  try {
+    const response = await fetchWithAuth(`http://localhost:3000/orders/${orderId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "processed" }),
+    });
+    const updatedOrder = await response.json();
+    setOrders(
+      orders.map((order) => (order.id === orderId ? updatedOrder : order))
+    );
+    alert(`Order #${orderId} processed successfully!`);
+  } catch (error) {
+    console.error("Error processing order:", error);
+    alert("Failed to process order");
+  }
+};
+
+const addProduct = async (e) => {
+  e.preventDefault();
+
+  if (!newProductName || !newProductStock) {
+    alert("Please fill in all fields and stock");
+    return;
+  }
+
+  try {
+    const response = await fetchWithAuth("http://localhost:3000/products", {
+      method: "POST",
       body: JSON.stringify({
         name: newProductName,
         stock: parseInt(newProductStock),
@@ -208,19 +314,17 @@ function App() {
         price: 0,
         minStock: 0,
       }),
-    })
-      .then((response) => response.json())
-      .then((newProduct) => {
-        setProducts([...products, newProduct]);
-        setNewProductName("");
-        setNewProductStock("");
-        alert(`Product "${newProduct.name}" added successfully!`);
-      })
-      .catch((error) => {
-        console.error("Error adding product:", error);
-        alert("Failed to add product");
-      });
-  };
+    });
+    const newProduct = await response.json();
+    setProducts([...products, newProduct]);
+    setNewProductName("");
+    setNewProductStock("");
+    alert(`Product "${newProduct.name}" added successfully!`);
+  } catch (error) {
+    console.error("Error adding product:", error);
+    alert("Failed to add product");
+  }
+};
 
   const viewProductDetails = (product) => {
     setSelectedProduct(product);
@@ -241,89 +345,78 @@ function App() {
     setIsEditingProduct(true);
   };
 
-  const saveProductChanges = () => {
-    const token = localStorage.getItem('authToken');
-
-    const dataToSend = {
-      name: editProductForm.name,
-      stock: editProductForm.stock,
-      eanCode: editProductForm.eanCode,
-      description: editProductForm.description,
-      category: editProductForm.category,
-      supplier: editProductForm.supplier,
-      price: editProductForm.price,
-      minStock: editProductForm.minStock,
+const saveProductChanges = async () => {
+  const dataToSend = {
+    name: editProductForm.name,
+    stock: editProductForm.stock,
+    eanCode: editProductForm.eanCode,
+    description: editProductForm.description,
+    category: editProductForm.category,
+    supplier: editProductForm.supplier,
+    price: editProductForm.price,
+    minStock: editProductForm.minStock,
   };
 
-  fetch(`http://localhost:3000/products/${selectedProduct.id}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-    },
-    body: JSON.stringify(dataToSend),
-  })
-    .then((response) => response.json())
-    .then((updatedProduct) => { 
-      const converted = { // Convert camelCase to snake_case for database
-        id: updatedProduct.id,
-        name: updatedProduct.name,
-        stock: parseInt(updatedProduct.stock) || 0,
-        eanCode: updatedProduct.ean_code || "",
-        description: updatedProduct.description || "",
-        category: updatedProduct.category || "",
-        supplier: updatedProduct.supplier || "",
-        price: parseFloat(updatedProduct.price) || 0,
-        minStock: parseInt(updatedProduct.min_stock) || 0,
-      };
+  try {
+    const response = await fetchWithAuth(
+      `http://localhost:3000/products/${selectedProduct.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(dataToSend),
+      }
+    );
+    const updatedProduct = await response.json();
+    
+    const converted = {
+      id: updatedProduct.id,
+      name: updatedProduct.name,
+      stock: parseInt(updatedProduct.stock) || 0,
+      eanCode: updatedProduct.ean_code || "",
+      description: updatedProduct.description || "",
+      category: updatedProduct.category || "",
+      supplier: updatedProduct.supplier || "",
+      price: parseFloat(updatedProduct.price) || 0,
+      minStock: parseInt(updatedProduct.min_stock) || 0,
+    };
 
-      setProducts(
-        products.map((p) => (p.id === converted.id ? converted : p)),
-      );
-      setSelectedProduct(converted);
-      setIsEditingProduct(false);
-      alert("Product updated successfully!");
-    })
-    .catch((error) => {
-      console.error("Error updating product:", error);
-      alert("Failed to update product");
-    });
+    setProducts(products.map((p) => (p.id === converted.id ? converted : p)));
+    setSelectedProduct(converted);
+    setIsEditingProduct(false);
+    alert("Product updated successfully!");
+  } catch (error) {
+    console.error("Error updating product:", error);
+    alert("Failed to update product");
+  }
+}
+
+const updateProductStock = async (productId) => {
+  if (!editingStock || editingStock < 0) {
+    alert("Please enter a valid stock amount");
+    return;
+  }
+
+  try {
+    const response = await fetchWithAuth(
+      `http://localhost:3000/products/${productId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ stock: parseInt(editingStock) }),
+      }
+    );
+    const updatedProduct = await response.json();
+    setProducts(
+      products.map((product) =>
+        product.id === productId ? updatedProduct : product
+      )
+    );
+    setEditingProductId(null);
+    setEditingStock("");
+    alert(`Stock updated successfully!`);
+  } catch (error) {
+    console.error("Error updating product:", error);
+    alert("Failed to update stock");
+  }
 };
-
-  const updateProductStock = (productId) => {
-    if (!editingStock || editingStock < 0) {
-      alert("Please enter a valid stock amount");
-      return;
-    }
-
-     const token = localStorage.getItem('authToken');
-
-    fetch(`http://localhost:3000/products/${productId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
-      body: JSON.stringify({ stock: parseInt(editingStock) }),
-    })
-      .then((response) => response.json())
-      .then((updatedProduct) => {
-        // Update product in local state
-        setProducts(
-          products.map((product) =>
-            product.id === productId ? updatedProduct : product,
-          ),
-        );
-        // Clear editing state
-        setEditingProductId(null);
-        setEditingStock("");
-        alert(`Stock updated successfully!`);
-      })
-      .catch((error) => {
-        console.error("Error updating product:", error);
-        alert("Failed to update stock");
-      });
-  };
 
   const getLowStockProducts = () => {
     const threshold = 60;
@@ -560,34 +653,26 @@ function App() {
     let imported = 0;
     let failed = 0;
 
-    const importNext = (index) => {
-      if (index >= productsToImport.length) {
-        alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
-        fetchProducts(); // Refresh the product list
-        return;
-      }
+const importNext = async (index) => {
+  if (index >= productsToImport.length) {
+    alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
+    fetchProducts();
+    return;
+  }
 
-      const token = localStorage.getItem('authToken');
-
-      fetch("http://localhost:3000/products", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, 
-        },
-        body: JSON.stringify(productsToImport[index]),
-      })
-        .then((response) => response.json())
-        .then(() => {
-          imported++;
-          importNext(index + 1);
-        })
-        .catch((error) => {
-          console.error("Error importing product:", error);
-          failed++;
-          importNext(index + 1);
-        });
-    };
+  try {
+    await fetchWithAuth("http://localhost:3000/products", {
+      method: "POST",
+      body: JSON.stringify(productsToImport[index]),
+    });
+    imported++;
+  } catch (error) {
+    console.error("Error importing product:", error);
+    failed++;
+  }
+  
+  importNext(index + 1);
+};
 
     importNext(0);
   };
@@ -679,115 +764,89 @@ function App() {
     let imported = 0;
     let failed = 0;
 
-    const importNext = (index) => {
-      if (index >= ordersToImport.length) {
-        alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
-        fetchOrders(); // Refresh the order list
-        return;
-      }
+const importNext = async (index) => {
+  if (index >= ordersToImport.length) {
+    alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
+    fetchOrders();
+    return;
+  }
 
-      const token = localStorage.getItem('authToken'); 
-
-      fetch("http://localhost:3000/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify(ordersToImport[index]),
-      })
-        .then((response) => response.json())
-        .then(() => {
-          imported++;
-          importNext(index + 1);
-        })
-        .catch((error) => {
-          console.error("Error importing order:", error);
-          failed++;
-          importNext(index + 1);
-        });
-    };
+  try {
+    await fetchWithAuth("http://localhost:3000/orders", {
+      method: "POST",
+      body: JSON.stringify(ordersToImport[index]),
+    });
+    imported++;
+  } catch (error) {
+    console.error("Error importing order:", error);
+    failed++;
+  }
+  
+  importNext(index + 1);
+};
 
     importNext(0);
   };
 
-  const addWorker = (e) => {
-    e.preventDefault();
+const addWorker = async (e) => {
+  e.preventDefault();
 
-    if (!newWorker.name || !newWorker.email) {
-      alert("Name and email are required");
-      return;
-    }
+  if (!newWorker.name || !newWorker.email) {
+    alert("Name and email are required");
+    return;
+  }
 
-      const token = localStorage.getItem('authToken');
-
-    fetch("http://localhost:3000/workers", {
+  try {
+    const response = await fetchWithAuth("http://localhost:3000/workers", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
       body: JSON.stringify(newWorker),
-    })
-      .then((response) => response.json())
-      .then((worker) => {
-        setWorkers([...workers, worker]);
-        setNewWorker({ name: "", email: "", role: "Picker", phone: "" });
-        setShowAddWorkerForm(false);
-        alert(`Worker "${worker.name}" added successfully!`);
-      })
-      .catch((error) => {
-        console.error("Error adding worker:", error);
-        alert("Failed to add worker");
-      });
-  };
+    });
+    const worker = await response.json();
+    setWorkers([...workers, worker]);
+    setNewWorker({ name: "", email: "", role: "Picker", phone: "" });
+    setShowAddWorkerForm(false);
+    alert(`Worker "${worker.name}" added successfully!`);
+  } catch (error) {
+    console.error("Error adding worker:", error);
+    alert("Failed to add worker");
+  }
+};
 
-  const updateWorker = (workerId, updates) => {
-    const token = localStorage.getItem('authToken');
+const updateWorker = async (workerId, updates) => {
+  try {
+    const response = await fetchWithAuth(
+      `http://localhost:3000/workers/${workerId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      }
+    );
+    const updatedWorker = await response.json();
+    setWorkers(workers.map((w) => (w.id === workerId ? updatedWorker : w)));
+    setEditingWorker(null);
+    alert("Worker updated successfully!");
+  } catch (error) {
+    console.error("Error updating worker:", error);
+    alert("Failed to update worker");
+  }
+};
 
-    fetch(`http://localhost:3000/workers/${workerId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
-      body: JSON.stringify(updates),
-    })
-      .then((response) => response.json())
-      .then((updatedWorker) => {
-        setWorkers(workers.map((w) => (w.id === workerId ? updatedWorker : w)));
-        setEditingWorker(null);
-        alert("Worker updated successfully!");
-      })
-      .catch((error) => {
-        console.error("Error updating worker:", error);
-        alert("Failed to update worker");
-      });
-  };
+const deleteWorker = async (workerId) => {
+  if (!window.confirm("Are you sure you want to delete this worker?")) {
+    return;
+  }
 
-  const deleteWorker = (workerId) => {
-    if (!window.confirm("Are you sure you want to delete this worker?")) {
-      return;
-    }
-
-    const token = localStorage.getItem('authToken');
-
-    fetch(`http://localhost:3000/workers/${workerId}`, {
+  try {
+    await fetchWithAuth(`http://localhost:3000/workers/${workerId}`, {
       method: "DELETE",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
-    })
-      .then((response) => response.json())
-      .then(() => {
-        setWorkers(workers.filter((w) => w.id !== workerId));
-        alert("Worker deleted successfully!");
-      })
-      .catch((error) => {
-        console.error("Error deleting worker:", error);
-        alert("Failed to delete worker");
-      });
-  };
+    });
+    setWorkers(workers.filter((w) => w.id !== workerId));
+    alert("Worker deleted successfully!");
+  } catch (error) {
+    console.error("Error deleting worker:", error);
+    alert("Failed to delete worker");
+  }
+};
 
   const toggleWorkerStatus = (workerId, currentStatus) => {
     updateWorker(workerId, { active: !currentStatus });
@@ -901,6 +960,10 @@ function App() {
         return renderProductsPage();
       case "workers":
         return renderWorkersPage();
+      case 'customers':       
+        return renderCustomersPage();
+      case 'users':
+        return renderUsersPage();
       default:
         return renderHomePage();
     }
@@ -1871,6 +1934,278 @@ function App() {
     </>
   );
 
+  // Customers page
+const renderCustomersPage = () => (
+  <>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <h1 className="page-title" style={{ margin: 0 }}>
+        <i className="fas fa-address-book"></i> Customers Management
+      </h1>
+      <button
+        onClick={() => setShowAddCustomerForm(!showAddCustomerForm)}
+        className="button"
+        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+      >
+        <i className={`fas fa-${showAddCustomerForm ? 'times' : 'plus'}`}></i>
+        {showAddCustomerForm ? 'Cancel' : 'Add Customer'}
+      </button>
+    </div>
+
+    {/* Add Customer Form */}
+    {showAddCustomerForm && (
+      <div className="section">
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Add New Customer</h3>
+          <form onSubmit={addCustomer}>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Name *</label>
+                <input
+                  type="text"
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                  className="form-input"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                  className="form-input"
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Phone</label>
+                <input
+                  type="tel"
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                  className="form-input"
+                  placeholder="555-0100"
+                />
+              </div>
+              <div className="form-group">
+                <label>Company</label>
+                <input
+                  type="text"
+                  value={newCustomer.company}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })}
+                  className="form-input"
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Address</label>
+              <textarea
+                value={newCustomer.address}
+                onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
+                className="form-input"
+                rows="2"
+              />
+            </div>
+            <button type="submit" className="button">
+              <i className="fas fa-save"></i> Add Customer
+            </button>
+          </form>
+        </div>
+      </div>
+    )}
+
+    {/* Customers List */}
+    <div className="section">
+      <div className="card">
+        {customers.length === 0 ? (
+          <p className="empty-state">No customers yet. Add your first customer above!</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr className="table-header">
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Company</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((customer) => (
+                <tr key={customer.id} className="table-row">
+                  {editingCustomer?.id === customer.id ? (
+                    // Edit mode
+                    <>
+                      <td>{customer.id}</td>
+                      <td>
+                        <input
+                          type="text"
+                          value={editingCustomer.name}
+                          onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
+                          className="form-input"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="email"
+                          value={editingCustomer.email || ''}
+                          onChange={(e) => setEditingCustomer({ ...editingCustomer, email: e.target.value })}
+                          className="form-input"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="tel"
+                          value={editingCustomer.phone || ''}
+                          onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
+                          className="form-input"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          value={editingCustomer.company || ''}
+                          onChange={(e) => setEditingCustomer({ ...editingCustomer, company: e.target.value })}
+                          className="form-input"
+                        />
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <button
+                            onClick={() => updateCustomer(customer.id, editingCustomer)}
+                            className="button"
+                            style={{ padding: '6px 12px', fontSize: '12px' }}
+                          >
+                            <i className="fas fa-check"></i>
+                          </button>
+                          <button
+                            onClick={() => setEditingCustomer(null)}
+                            className="button"
+                            style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#6b7280' }}
+                          >
+                            <i className="fas fa-times"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    // View mode
+                    <>
+                      <td>{customer.id}</td>
+                      <td>{customer.name}</td>
+                      <td>{customer.email || '-'}</td>
+                      <td>{customer.phone || '-'}</td>
+                      <td>{customer.company || '-'}</td>
+                      <td>
+                        <button
+                          onClick={() => setEditingCustomer(customer)}
+                          className="button"
+                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                        >
+                          <i className="fas fa-edit"></i> Edit
+                        </button>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  </>
+);
+
+// Users page (Admin only)
+const renderUsersPage = () => {
+  // Double-check user is admin
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="section">
+        <div className="card">
+          <p className="empty-state">Access Denied. Admin privileges required.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+        <h1 className="page-title" style={{ margin: 0 }}>
+          <i className="fas fa-users-cog"></i> User Management
+        </h1>
+      </div>
+
+      {/* Users List */}
+      <div className="section">
+        <div className="card">
+          {users.length === 0 ? (
+            <p className="empty-state">No users found.</p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr className="table-header">
+                  <th>ID</th>
+                  <th>Username</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <tr key={user.id} className="table-row">
+                    <td>{user.id}</td>
+                    <td>{user.username}</td>
+                    <td>{user.email}</td>
+                    <td>
+                      <span className={`badge ${user.role === 'admin' ? 'badge-green' : 'badge-orange'}`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '5px' }}>
+                        <button
+                          onClick={() => {
+                            const newRole = user.role === 'admin' ? 'user' : 'admin';
+                            if (window.confirm(`Change ${user.username}'s role to ${newRole}?`)) {
+                              updateUser(user.id, { role: newRole });
+                            }
+                          }}
+                          className="button"
+                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                        >
+                          <i className="fas fa-exchange-alt"></i> Toggle Role
+                        </button>
+                        {user.id !== currentUser.userId && (
+                          <button
+                            onClick={() => deleteUser(user.id)}
+                            className="button"
+                            style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#ef4444' }}
+                          >
+                            <i className="fas fa-trash"></i>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
   // Login/Register page
   const renderAuthPage = () => (
     <div
@@ -2104,6 +2439,14 @@ function App() {
                 {!sidebarCollapsed && <span> Products</span>}
               </button>
               <button
+                className={`nav-item ${currentPage === "customers" ? "active" : ""}`}
+                onClick={() => setCurrentPage("customers")}
+                title="Customers"
+              >
+                <i className="fas fa-address-book"></i>
+                {!sidebarCollapsed && <span> Customers</span>}
+              </button>
+              <button
                 className={`nav-item ${currentPage === "workers" ? "active" : ""}`}
                 onClick={() => setCurrentPage("workers")}
                 title="Workers"
@@ -2111,6 +2454,16 @@ function App() {
                 <i className="fas fa-users"></i>
                 {!sidebarCollapsed && <span> Workers</span>}
               </button>
+              {currentUser?.role === 'admin' && (
+                <button
+                  className={`nav-item ${currentPage === "users" ? "active" : ""}`}
+                  onClick={() => setCurrentPage("users")}
+                  title="Users"
+                >
+                  <i className="fas fa-users-cog"></i>
+                  {!sidebarCollapsed && <span> Users</span>}
+                </button>
+)}
               <button
                 className="nav-item"
                 onClick={handleLogout}
