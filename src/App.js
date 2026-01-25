@@ -43,6 +43,7 @@ function App() {
     email: "",
     role: "Picker",
     phone: "",
+    userId: null,
   });
   const [editingWorker, setEditingWorker] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -69,262 +70,429 @@ function App() {
   const [editingProductId, setEditingProductId] = useState(null);
   const [editingStock, setEditingStock] = useState("");
   const [customers, setCustomers] = useState([]);
-const [users, setUsers] = useState([]);
-const [showAddCustomerForm, setShowAddCustomerForm] = useState(false);
-const [newCustomer, setNewCustomer] = useState({
-  name: '',
-  email: '',
-  phone: '',
-  company: '',
-  address: ''
-});
-const [editingCustomer, setEditingCustomer] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [showAddCustomerForm, setShowAddCustomerForm] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    company: "",
+    address: "",
+  });
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [showAddOrderForm, setShowAddOrderForm] = useState(false);
+  const [newOrder, setNewOrder] = useState({
+    customerId: "",
+    items: [{ productId: "", quantity: "" }], // Array of items
+  });
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerOrders, setCustomerOrders] = useState([]);
 
   useEffect(() => {
     if (isAuthenticated) {
-    fetchProducts();
-    fetchOrders();
-    fetchWorkers();
-    fetchCustomers(); 
-    fetchUsers();
+      fetchProducts();
+      fetchOrders();
+      fetchWorkers();
+      fetchCustomers();
+      fetchUsers();
     }
   }, [isAuthenticated]);
 
   // Helper function to make authenticated API requests
-const fetchWithAuth = async (url, options = {},) => {
-  const token = localStorage.getItem('authToken');
-  
-  if (!token) {
-     // If no token, redirect to login
-    setIsAuthenticated(false);
-    throw new Error('No authentication token');
-  } 
+  const fetchWithAuth = async (url, options = {}) => {
+    const token = localStorage.getItem("authToken");
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+    if (!token) {
+      // If no token, redirect to login
+      setIsAuthenticated(false);
+      throw new Error("No authentication token");
     }
-  });
-  
-  // If token is invalid (401 or 403), log out
-  if (response.status === 401 || response.status === 403) {
-    localStorage.removeItem('authToken');
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-    alert('Session expired. Please log in again.');
-    throw new Error('Authentication failed');
-  }
-  
-  return response;
-};
 
-  const fetchProducts = async () => {
-    try{
-      const response = await fetchWithAuth('http://localhost:3000/products');
-      const data = await response.json();
-      const convertedData = data.map((product) => ({
-          id: product.id,
-          name: product.name,
-          stock: parseInt(product.stock) || 0,
-          eanCode: product.ean_code || "", // ← Convert column name
-          description: product.description || "",
-          category: product.category || "",
-          supplier: product.supplier || "",
-          price: parseFloat(product.price) || 0,
-          minStock: parseInt(product.min_stock) || 0, // ← Convert column name
-        }));
-        setProducts(convertedData);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-      }
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    // If token is invalid (401 or 403), log out
+    if (response.status === 401 || response.status === 403) {
+      localStorage.removeItem("authToken");
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      alert("Session expired. Please log in again.");
+      throw new Error("Authentication failed");
+    }
+
+    return response;
   };
 
-const fetchOrders = async () => {
-  try {
-    const response = await fetchWithAuth('http://localhost:3000/orders');
-    const data = await response.json();
-    const convertedData = data.map((order) => ({
-      id: order.id,
-      productId: parseInt(order.product_id) || 0,
-      productName: order.product_name || "",
-      quantity: parseInt(order.quantity) || 0,
-      customerName: order.customer_name || "",
-      status: order.status || "pending",
-      createdAt: order.created_at || new Date(),
-    }));
-    setOrders(convertedData);
-  } catch (error) {
-    console.error("Error fetching orders:", error);
-  }
-};
+  const fetchProducts = async () => {
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/products");
+      const data = await response.json();
+      const convertedData = data.map((product) => ({
+        id: product.id,
+        name: product.name,
+        stock: parseInt(product.stock) || 0,
+        eanCode: product.ean_code || "", // ← Convert column name
+        description: product.description || "",
+        category: product.category || "",
+        supplier: product.supplier || "",
+        price: parseFloat(product.price) || 0,
+        minStock: parseInt(product.min_stock) || 0, // ← Convert column name
+      }));
+      setProducts(convertedData);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    }
+  };
 
-const fetchWorkers = async () => {
-  try {
-    const response = await fetchWithAuth('http://localhost:3000/workers');
-    const data = await response.json();
-    const convertedData = data.map((worker) => ({
-      ...worker,
-      active: worker.active === true || worker.active === "true",
-    }));
-    setWorkers(convertedData);
-  } catch (error) {
-    console.error("Error fetching workers:", error);
-  }
-};
+  const fetchOrders = async () => {
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/orders");
+      const data = await response.json();
+      const convertedData = data.map((order) => ({
+        id: order.id,
+        customerId: parseInt(order.customer_id) || 0,
+        customerName: order.customer_name || "",
+        customerEmail: order.customer_email || "",
+        customerCompany: order.customer_company || "",
+        status: order.status || "pending",
+        createdAt: order.created_at || new Date(),
+        items: order.items.map((item) => ({
+          id: item.id,
+          productId: parseInt(item.product_id) || 0,
+          productName: item.product_name || "",
+          quantity: parseInt(item.quantity) || 0,
+          priceAtOrder: parseFloat(item.price_at_order) || 0,
+          createdAt: item.created_at || new Date(),
+        })),
+      }));
+      setOrders(convertedData);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+    }
+  };
 
-const fetchCustomers = async () => {
-  try {
-    const response = await fetchWithAuth('http://localhost:3000/customers');
-    const data = await response.json();
-    setCustomers(data);
-  } catch (error) {
-    console.error("Error fetching customers:", error);
-  }
-};
+  const fetchWorkers = async () => {
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/workers");
+      const data = await response.json();
+      const convertedData = data.map((worker) => ({
+        id: worker.id,
+        name: worker.name,
+        email: worker.email,
+        role: worker.role,
+        phone: worker.phone,
+        active: worker.active === true || worker.active === "true",
+        userId: worker.user_id || null, // Convert user_id to userId
+        username: worker.username || null, // From the JOIN
+        userEmail: worker.user_email || null, // From the JOIN
+      }));
+      setWorkers(convertedData);
+    } catch (error) {
+      console.error("Error fetching workers:", error);
+    }
+  };
 
-const fetchUsers = async () => {
-  // Only fetch if user is admin
-  if (currentUser?.role !== 'admin') return;
-  
-  try {
-    const response = await fetchWithAuth('http://localhost:3000/users');
-    const data = await response.json();
-    setUsers(data);
-  } catch (error) {
-    console.error("Error fetching users:", error);
-  }
-};
+  const fetchCustomers = async () => {
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/customers");
+      const data = await response.json();
+      setCustomers(data);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    }
+  };
 
-const addCustomer = async (e) => {
-  e.preventDefault();
+  const fetchCustomerOrders = async (customerId) => {
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/customers/${customerId}/orders`,
+      );
+      const data = await response.json();
 
-  if (!newCustomer.name) {
-    alert("Customer name is required");
-    return;
-  }
+      // Convert orders to frontend format
+      const convertedOrders = data.orders.map((order) => ({
+        id: order.id,
+        customerId: parseInt(order.customer_id) || 0,
+        customerName: order.customer_name || "",
+        status: order.status || "pending",
+        createdAt: order.created_at || new Date(),
+        items: order.items.map((item) => ({
+          id: item.id,
+          productId: parseInt(item.product_id) || 0,
+          productName: item.product_name || "",
+          quantity: parseInt(item.quantity) || 0,
+          priceAtOrder: parseFloat(item.price_at_order) || 0,
+        })),
+      }));
 
-  try {
-    const response = await fetchWithAuth("http://localhost:3000/customers", {
-      method: "POST",
-      body: JSON.stringify(newCustomer),
+      setCustomerOrders(convertedOrders);
+      setSelectedCustomer(data.customer);
+    } catch (error) {
+      console.error("Error fetching customer orders:", error);
+      alert("Failed to fetch customer orders");
+    }
+  };
+
+  const fetchUsers = async () => {
+    // Only fetch if user is admin
+    if (currentUser?.role !== "admin") return;
+
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/users");
+      const data = await response.json();
+      setUsers(data);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  const addCustomer = async (e) => {
+    e.preventDefault();
+
+    if (!newCustomer.name) {
+      alert("Customer name is required");
+      return;
+    }
+
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/customers", {
+        method: "POST",
+        body: JSON.stringify(newCustomer),
+      });
+      const customer = await response.json();
+      setCustomers([...customers, customer]);
+      setNewCustomer({
+        name: "",
+        email: "",
+        phone: "",
+        company: "",
+        address: "",
+      });
+      setShowAddCustomerForm(false);
+      alert(`Customer "${customer.name}" added successfully!`);
+    } catch (error) {
+      console.error("Error adding customer:", error);
+      alert("Failed to add customer");
+    }
+  };
+
+  const updateCustomer = async (customerId, updates) => {
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/customers/${customerId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(updates),
+        },
+      );
+      const updatedCustomer = await response.json();
+      setCustomers(
+        customers.map((c) => (c.id === customerId ? updatedCustomer : c)),
+      );
+      setEditingCustomer(null);
+      alert("Customer updated successfully!");
+    } catch (error) {
+      console.error("Error updating customer:", error);
+      alert("Failed to update customer");
+    }
+  };
+
+  const updateUser = async (userId, updates) => {
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/users/${userId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(updates),
+        },
+      );
+      const updatedUser = await response.json();
+      setUsers(users.map((u) => (u.id === userId ? updatedUser : u)));
+      alert("User updated successfully!");
+    } catch (error) {
+      console.error("Error updating user:", error);
+      alert("Failed to update user");
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) {
+      return;
+    }
+
+    try {
+      await fetchWithAuth(`http://localhost:3000/users/${userId}`, {
+        method: "DELETE",
+      });
+      setUsers(users.filter((u) => u.id !== userId));
+      alert("User deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      alert("Failed to delete user");
+    }
+  };
+
+  const processOrder = async (orderId) => {
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/orders/${orderId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status: "processed" }),
+        },
+      );
+      const updatedOrder = await response.json();
+
+      // Convert database format to frontend format (same as in fetchOrders)
+      const convertedOrder = {
+        id: updatedOrder.id,
+        customerId: parseInt(updatedOrder.customer_id) || 0,
+        customerName: updatedOrder.customer_name || "",
+        customerEmail: updatedOrder.customer_email || "",
+        customerCompany: updatedOrder.customer_company || "",
+        status: updatedOrder.status || "pending",
+        createdAt: updatedOrder.created_at || new Date(),
+        items: (updatedOrder.items || []).map((item) => ({
+          id: item.id,
+          productId: parseInt(item.product_id) || 0,
+          productName: item.product_name || "",
+          quantity: parseInt(item.quantity) || 0,
+          priceAtOrder: parseFloat(item.price_at_order) || 0,
+        })),
+      };
+
+      setOrders(
+        orders.map((order) => (order.id === orderId ? convertedOrder : order)),
+      );
+      alert(`Order #${orderId} processed successfully!`);
+    } catch (error) {
+      console.error("Error processing order:", error);
+      alert("Failed to process order");
+    }
+  };
+
+  // Add helper functions to manage order items
+  const addOrderItem = () => {
+    setNewOrder({
+      ...newOrder,
+      items: [...newOrder.items, { productId: "", quantity: "" }],
     });
-    const customer = await response.json();
-    setCustomers([...customers, customer]);
-    setNewCustomer({ name: '', email: '', phone: '', company: '', address: '' });
-    setShowAddCustomerForm(false);
-    alert(`Customer "${customer.name}" added successfully!`);
-  } catch (error) {
-    console.error("Error adding customer:", error);
-    alert("Failed to add customer");
-  }
-};
+  };
 
-const updateCustomer = async (customerId, updates) => {
-  try {
-    const response = await fetchWithAuth(
-      `http://localhost:3000/customers/${customerId}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(updates),
-      }
+  const removeOrderItem = (index) => {
+    const newItems = newOrder.items.filter((_, i) => i !== index);
+    setNewOrder({
+      ...newOrder,
+      items: newItems.length > 0 ? newItems : [{ productId: "", quantity: "" }],
+    });
+  };
+
+  const updateOrderItem = (index, field, value) => {
+    const newItems = [...newOrder.items];
+    newItems[index][field] = value;
+    setNewOrder({
+      ...newOrder,
+      items: newItems,
+    });
+  };
+
+  const addOrder = async (e) => {
+    e.preventDefault();
+
+    if (!newOrder.customerId) {
+      alert("Customer is required");
+      return;
+    }
+
+    // Validate items
+    const validItems = newOrder.items.filter(
+      (item) => item.productId && item.quantity > 0,
     );
-    const updatedCustomer = await response.json();
-    setCustomers(customers.map((c) => (c.id === customerId ? updatedCustomer : c)));
-    setEditingCustomer(null);
-    alert("Customer updated successfully!");
-  } catch (error) {
-    console.error("Error updating customer:", error);
-    alert("Failed to update customer");
-  }
-};
+    if (validItems.length === 0) {
+      alert("At least one item with product and quantity is required");
+      return;
+    }
 
-const updateUser = async (userId, updates) => {
-  try {
-    const response = await fetchWithAuth(
-      `http://localhost:3000/users/${userId}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(updates),
-      }
-    );
-    const updatedUser = await response.json();
-    setUsers(users.map((u) => (u.id === userId ? updatedUser : u)));
-    alert("User updated successfully!");
-  } catch (error) {
-    console.error("Error updating user:", error);
-    alert("Failed to update user");
-  }
-};
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          customerId: parseInt(newOrder.customerId),
+          items: validItems.map((item) => ({
+            productId: parseInt(item.productId),
+            quantity: parseInt(item.quantity),
+          })),
+        }),
+      });
 
-const deleteUser = async (userId) => {
-  if (!window.confirm("Are you sure you want to delete this user?")) {
-    return;
-  }
+      const order = await response.json();
 
-  try {
-    await fetchWithAuth(`http://localhost:3000/users/${userId}`, {
-      method: "DELETE",
-    });
-    setUsers(users.filter((u) => u.id !== userId));
-    alert("User deleted successfully!");
-  } catch (error) {
-    console.error("Error deleting user:", error);
-    alert("Failed to delete user");
-  }
-};
+      // Convert database format to frontend format
+      const convertedOrder = {
+        id: order.id,
+        customerId: parseInt(order.customer_id) || 0,
+        customerName: order.customer_name || "",
+        status: order.status || "pending",
+        createdAt: order.created_at || new Date(),
+        items: order.items.map((item) => ({
+          id: item.id,
+          productId: parseInt(item.product_id) || 0,
+          productName: item.product_name || "",
+          quantity: parseInt(item.quantity) || 0,
+          priceAtOrder: parseFloat(item.price_at_order) || 0,
+        })),
+      };
 
-const processOrder = async (orderId) => {
-  try {
-    const response = await fetchWithAuth(`http://localhost:3000/orders/${orderId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "processed" }),
-    });
-    const updatedOrder = await response.json();
-    setOrders(
-      orders.map((order) => (order.id === orderId ? updatedOrder : order))
-    );
-    alert(`Order #${orderId} processed successfully!`);
-  } catch (error) {
-    console.error("Error processing order:", error);
-    alert("Failed to process order");
-  }
-};
+      setOrders([convertedOrder, ...orders]);
+      setNewOrder({ customerId: "", items: [{ productId: "", quantity: "" }] });
+      setShowAddOrderForm(false);
+      alert(
+        `Order #${convertedOrder.id} created successfully with ${convertedOrder.items.length} item(s)!`,
+      );
+    } catch (error) {
+      console.error("Error creating order:", error);
+      alert("Failed to create order. Check console for details.");
+    }
+  };
 
-const addProduct = async (e) => {
-  e.preventDefault();
+  const addProduct = async (e) => {
+    e.preventDefault();
 
-  if (!newProductName || !newProductStock) {
-    alert("Please fill in all fields and stock");
-    return;
-  }
+    if (!newProductName || !newProductStock) {
+      alert("Please fill in all fields and stock");
+      return;
+    }
 
-  try {
-    const response = await fetchWithAuth("http://localhost:3000/products", {
-      method: "POST",
-      body: JSON.stringify({
-        name: newProductName,
-        stock: parseInt(newProductStock),
-        eanCode: "",
-        description: "",
-        category: "",
-        supplier: "",
-        price: 0,
-        minStock: 0,
-      }),
-    });
-    const newProduct = await response.json();
-    setProducts([...products, newProduct]);
-    setNewProductName("");
-    setNewProductStock("");
-    alert(`Product "${newProduct.name}" added successfully!`);
-  } catch (error) {
-    console.error("Error adding product:", error);
-    alert("Failed to add product");
-  }
-};
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/products", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newProductName,
+          stock: parseInt(newProductStock),
+          eanCode: "",
+          description: "",
+          category: "",
+          supplier: "",
+          price: 0,
+          minStock: 0,
+        }),
+      });
+      const newProduct = await response.json();
+      setProducts([...products, newProduct]);
+      setNewProductName("");
+      setNewProductStock("");
+      alert(`Product "${newProduct.name}" added successfully!`);
+    } catch (error) {
+      console.error("Error adding product:", error);
+      alert("Failed to add product");
+    }
+  };
 
   const viewProductDetails = (product) => {
     setSelectedProduct(product);
@@ -345,78 +513,92 @@ const addProduct = async (e) => {
     setIsEditingProduct(true);
   };
 
-const saveProductChanges = async () => {
-  const dataToSend = {
-    name: editProductForm.name,
-    stock: editProductForm.stock,
-    eanCode: editProductForm.eanCode,
-    description: editProductForm.description,
-    category: editProductForm.category,
-    supplier: editProductForm.supplier,
-    price: editProductForm.price,
-    minStock: editProductForm.minStock,
-  };
-
-  try {
-    const response = await fetchWithAuth(
-      `http://localhost:3000/products/${selectedProduct.id}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(dataToSend),
-      }
-    );
-    const updatedProduct = await response.json();
-    
-    const converted = {
-      id: updatedProduct.id,
-      name: updatedProduct.name,
-      stock: parseInt(updatedProduct.stock) || 0,
-      eanCode: updatedProduct.ean_code || "",
-      description: updatedProduct.description || "",
-      category: updatedProduct.category || "",
-      supplier: updatedProduct.supplier || "",
-      price: parseFloat(updatedProduct.price) || 0,
-      minStock: parseInt(updatedProduct.min_stock) || 0,
+  const saveProductChanges = async () => {
+    const dataToSend = {
+      name: editProductForm.name,
+      stock: editProductForm.stock,
+      eanCode: editProductForm.eanCode,
+      description: editProductForm.description,
+      category: editProductForm.category,
+      supplier: editProductForm.supplier,
+      price: editProductForm.price,
+      minStock: editProductForm.minStock,
     };
 
-    setProducts(products.map((p) => (p.id === converted.id ? converted : p)));
-    setSelectedProduct(converted);
-    setIsEditingProduct(false);
-    alert("Product updated successfully!");
-  } catch (error) {
-    console.error("Error updating product:", error);
-    alert("Failed to update product");
-  }
-}
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/products/${selectedProduct.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(dataToSend),
+        },
+      );
+      const updatedProduct = await response.json();
 
-const updateProductStock = async (productId) => {
-  if (!editingStock || editingStock < 0) {
-    alert("Please enter a valid stock amount");
-    return;
-  }
+      const converted = {
+        id: updatedProduct.id,
+        name: updatedProduct.name,
+        stock: parseInt(updatedProduct.stock) || 0,
+        eanCode: updatedProduct.ean_code || "",
+        description: updatedProduct.description || "",
+        category: updatedProduct.category || "",
+        supplier: updatedProduct.supplier || "",
+        price: parseFloat(updatedProduct.price) || 0,
+        minStock: parseInt(updatedProduct.min_stock) || 0,
+      };
 
-  try {
-    const response = await fetchWithAuth(
-      `http://localhost:3000/products/${productId}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ stock: parseInt(editingStock) }),
-      }
-    );
-    const updatedProduct = await response.json();
-    setProducts(
-      products.map((product) =>
-        product.id === productId ? updatedProduct : product
-      )
-    );
-    setEditingProductId(null);
-    setEditingStock("");
-    alert(`Stock updated successfully!`);
-  } catch (error) {
-    console.error("Error updating product:", error);
-    alert("Failed to update stock");
-  }
-};
+      setProducts(products.map((p) => (p.id === converted.id ? converted : p)));
+      setSelectedProduct(converted);
+      setIsEditingProduct(false);
+      alert("Product updated successfully!");
+    } catch (error) {
+      console.error("Error updating product:", error);
+      alert("Failed to update product");
+    }
+  };
+
+  const updateProductStock = async (productId) => {
+    if (!editingStock || editingStock < 0) {
+      alert("Please enter a valid stock amount");
+      return;
+    }
+
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/products/${productId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ stock: parseInt(editingStock) }),
+        },
+      );
+      const updatedProduct = await response.json();
+
+      // Convert database format to frontend format
+      const convertedProduct = {
+        id: updatedProduct.id,
+        name: updatedProduct.name,
+        stock: parseInt(updatedProduct.stock) || 0,
+        eanCode: updatedProduct.ean_code || "",
+        description: updatedProduct.description || "",
+        category: updatedProduct.category || "",
+        supplier: updatedProduct.supplier || "",
+        price: parseFloat(updatedProduct.price) || 0,
+        minStock: parseInt(updatedProduct.min_stock) || 0,
+      };
+
+      setProducts(
+        products.map((product) =>
+          product.id === productId ? convertedProduct : product,
+        ),
+      );
+      setEditingProductId(null);
+      setEditingStock("");
+      alert(`Stock updated successfully!`);
+    } catch (error) {
+      console.error("Error updating product:", error);
+      alert("Failed to update stock");
+    }
+  };
 
   const getLowStockProducts = () => {
     const threshold = 60;
@@ -653,33 +835,33 @@ const updateProductStock = async (productId) => {
     let imported = 0;
     let failed = 0;
 
-const importNext = async (index) => {
-  if (index >= productsToImport.length) {
-    alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
-    fetchProducts();
-    return;
-  }
+    const importNext = async (index) => {
+      if (index >= productsToImport.length) {
+        alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
+        fetchProducts();
+        return;
+      }
 
-  try {
-    await fetchWithAuth("http://localhost:3000/products", {
-      method: "POST",
-      body: JSON.stringify(productsToImport[index]),
-    });
-    imported++;
-  } catch (error) {
-    console.error("Error importing product:", error);
-    failed++;
-  }
-  
-  importNext(index + 1);
-};
+      try {
+        await fetchWithAuth("http://localhost:3000/products", {
+          method: "POST",
+          body: JSON.stringify(productsToImport[index]),
+        });
+        imported++;
+      } catch (error) {
+        console.error("Error importing product:", error);
+        failed++;
+      }
+
+      importNext(index + 1);
+    };
 
     importNext(0);
   };
 
   const downloadOrderTemplate = () => {
-    const headers = ["productId", "quantity", "customerName"];
-    const exampleRow = ["1", "10", "John Doe"];
+    const headers = ["productId", "quantity", "customerId"];
+    const exampleRow = ["1", "10", "1"];
 
     const csvContent = [headers.join(","), exampleRow.join(",")].join("\n");
 
@@ -720,14 +902,12 @@ const importNext = async (index) => {
     }
 
     const headers = lines[0].split(",").map((h) => h.trim());
-    const requiredHeaders = ["productId", "quantity", "customerName"];
+    const requiredHeaders = ["productId", "quantity", "customerId"];
 
     // Check if required headers exist
     const hasRequired = requiredHeaders.every((h) => headers.includes(h));
     if (!hasRequired) {
-      alert(
-        'CSV must have "productId", "quantity", and "customerName" columns',
-      );
+      alert('CSV must have "productId", "quantity", and "customerId" columns');
       return;
     }
 
@@ -743,7 +923,7 @@ const importNext = async (index) => {
       });
 
       // Validate required fields
-      if (!order.productId || !order.quantity || !order.customerName) {
+      if (!order.productId || !order.quantity || !order.customerId) {
         console.warn(`Skipping row ${i + 1}: missing required fields`);
         continue;
       }
@@ -751,7 +931,7 @@ const importNext = async (index) => {
       ordersToImport.push({
         productId: parseInt(order.productId),
         quantity: parseInt(order.quantity),
-        customerName: order.customerName,
+        customerId: parseInt(order.customerId),
       });
     }
 
@@ -764,89 +944,145 @@ const importNext = async (index) => {
     let imported = 0;
     let failed = 0;
 
-const importNext = async (index) => {
-  if (index >= ordersToImport.length) {
-    alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
-    fetchOrders();
-    return;
-  }
+    const importNext = async (index) => {
+      if (index >= ordersToImport.length) {
+        alert(`Import complete!\nSuccessful: ${imported}\nFailed: ${failed}`);
+        fetchOrders();
+        return;
+      }
 
-  try {
-    await fetchWithAuth("http://localhost:3000/orders", {
-      method: "POST",
-      body: JSON.stringify(ordersToImport[index]),
-    });
-    imported++;
-  } catch (error) {
-    console.error("Error importing order:", error);
-    failed++;
-  }
-  
-  importNext(index + 1);
-};
+      try {
+        await fetchWithAuth("http://localhost:3000/orders", {
+          method: "POST",
+          body: JSON.stringify(ordersToImport[index]),
+        });
+        imported++;
+      } catch (error) {
+        console.error("Error importing order:", error);
+        failed++;
+      }
+
+      importNext(index + 1);
+    };
 
     importNext(0);
   };
 
-const addWorker = async (e) => {
-  e.preventDefault();
+  const addWorker = async (e) => {
+    e.preventDefault();
 
-  if (!newWorker.name || !newWorker.email) {
-    alert("Name and email are required");
-    return;
-  }
+    if (!newWorker.name || !newWorker.email) {
+      alert("Name and email are required");
+      return;
+    }
 
-  try {
-    const response = await fetchWithAuth("http://localhost:3000/workers", {
-      method: "POST",
-      body: JSON.stringify(newWorker),
-    });
-    const worker = await response.json();
-    setWorkers([...workers, worker]);
-    setNewWorker({ name: "", email: "", role: "Picker", phone: "" });
-    setShowAddWorkerForm(false);
-    alert(`Worker "${worker.name}" added successfully!`);
-  } catch (error) {
-    console.error("Error adding worker:", error);
-    alert("Failed to add worker");
-  }
-};
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/workers", {
+        method: "POST",
+        body: JSON.stringify({
+          ...newWorker,
+          userId: newWorker.userId ? parseInt(newWorker.userId) : null,
+        }),
+      });
+      const worker = await response.json();
 
-const updateWorker = async (workerId, updates) => {
-  try {
-    const response = await fetchWithAuth(
-      `http://localhost:3000/workers/${workerId}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(updates),
+      // Convert database format to frontend format
+      const convertedWorker = {
+        id: worker.id,
+        name: worker.name,
+        email: worker.email,
+        role: worker.role,
+        phone: worker.phone,
+        active: worker.active === true || worker.active === "true",
+        userId: worker.user_id || null,
+        username: worker.username || null,
+        userEmail: worker.user_email || null,
+      };
+
+      setWorkers([...workers, convertedWorker]);
+      setNewWorker({
+        name: "",
+        email: "",
+        role: "Picker",
+        phone: "",
+        userId: null,
+      });
+      setShowAddWorkerForm(false);
+      alert(`Worker "${convertedWorker.name}" added successfully!`);
+
+      // Refresh users list if a user was linked
+      if (newWorker.userId) {
+        fetchUsers();
       }
-    );
-    const updatedWorker = await response.json();
-    setWorkers(workers.map((w) => (w.id === workerId ? updatedWorker : w)));
-    setEditingWorker(null);
-    alert("Worker updated successfully!");
-  } catch (error) {
-    console.error("Error updating worker:", error);
-    alert("Failed to update worker");
-  }
-};
+    } catch (error) {
+      console.error("Error adding worker:", error);
+      alert("Failed to add worker");
+    }
+  };
 
-const deleteWorker = async (workerId) => {
-  if (!window.confirm("Are you sure you want to delete this worker?")) {
-    return;
-  }
+  const updateWorker = async (workerId, updates) => {
+    try {
+      // Convert userId to user_id for backend
+      const backendUpdates = { ...updates };
+      if ("userId" in backendUpdates) {
+        backendUpdates.userId = backendUpdates.userId
+          ? parseInt(backendUpdates.userId)
+          : null;
+      }
 
-  try {
-    await fetchWithAuth(`http://localhost:3000/workers/${workerId}`, {
-      method: "DELETE",
-    });
-    setWorkers(workers.filter((w) => w.id !== workerId));
-    alert("Worker deleted successfully!");
-  } catch (error) {
-    console.error("Error deleting worker:", error);
-    alert("Failed to delete worker");
-  }
-};
+      const response = await fetchWithAuth(
+        `http://localhost:3000/workers/${workerId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(backendUpdates),
+        },
+      );
+      const updatedWorker = await response.json();
+
+      // Convert database format to frontend format
+      const convertedWorker = {
+        id: updatedWorker.id,
+        name: updatedWorker.name,
+        email: updatedWorker.email,
+        role: updatedWorker.role,
+        phone: updatedWorker.phone,
+        active:
+          updatedWorker.active === true || updatedWorker.active === "true",
+        userId: updatedWorker.user_id || null,
+        username: updatedWorker.username || null,
+        userEmail: updatedWorker.user_email || null,
+      };
+
+      setWorkers(workers.map((w) => (w.id === workerId ? convertedWorker : w)));
+      setEditingWorker(null);
+      alert("Worker updated successfully!");
+
+      // Refresh users list if user linkage was changed
+      if ("userId" in backendUpdates) {
+        fetchUsers();
+      }
+    } catch (error) {
+      console.error("Error updating worker:", error);
+      alert("Failed to update worker");
+    }
+  };
+
+  const deleteWorker = async (workerId) => {
+    if (!window.confirm("Are you sure you want to delete this worker?")) {
+      return;
+    }
+
+    try {
+      await fetchWithAuth(`http://localhost:3000/workers/${workerId}`, {
+        method: "DELETE",
+      });
+      setWorkers(workers.filter((w) => w.id !== workerId));
+      alert("Worker deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting worker:", error);
+      alert("Failed to delete worker");
+    }
+  };
 
   const toggleWorkerStatus = (workerId, currentStatus) => {
     updateWorker(workerId, { active: !currentStatus });
@@ -960,9 +1196,9 @@ const deleteWorker = async (workerId) => {
         return renderProductsPage();
       case "workers":
         return renderWorkersPage();
-      case 'customers':       
+      case "customers":
         return renderCustomersPage();
-      case 'users':
+      case "users":
         return renderUsersPage();
       default:
         return renderHomePage();
@@ -1192,7 +1428,7 @@ const deleteWorker = async (workerId) => {
                 </thead>
                 <tbody>
                   {orders
-                    .slice(-5)
+                    .slice(-10)
                     .reverse()
                     .map((order) => (
                       <tr key={order.id} className="table-row">
@@ -1238,7 +1474,170 @@ const deleteWorker = async (workerId) => {
         >
           <i className="fas fa-download"></i> Export to CSV
         </button>
+        <button
+          onClick={() => setShowAddOrderForm(!showAddOrderForm)}
+          className="button"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            marginRight: "10px",
+          }}
+        >
+          <i className={`fas fa-${showAddOrderForm ? "times" : "plus"}`}></i>
+          {showAddOrderForm ? "Cancel" : "Create Order"}
+        </button>
       </div>
+
+      {/* Add Order Form */}
+      {showAddOrderForm && (
+        <div className="section">
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>Create New Order</h3>
+            <form onSubmit={addOrder}>
+              <div className="form-group">
+                <label>Customer *</label>
+                <select
+                  value={newOrder.customerId}
+                  onChange={(e) =>
+                    setNewOrder({ ...newOrder, customerId: e.target.value })
+                  }
+                  className="form-input"
+                  required
+                >
+                  <option value="">Select a customer...</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name}{" "}
+                      {customer.company && `(${customer.company})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginTop: "20px", marginBottom: "10px" }}>
+                <label
+                  style={{
+                    fontWeight: "600",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span>Order Items *</span>
+                  <button
+                    type="button"
+                    onClick={addOrderItem}
+                    className="button"
+                    style={{ padding: "6px 12px", fontSize: "12px" }}
+                  >
+                    <i className="fas fa-plus"></i> Add Item
+                  </button>
+                </label>
+              </div>
+
+              {newOrder.items.map((item, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    marginBottom: "10px",
+                    padding: "10px",
+                    backgroundColor: "#f9fafb",
+                    borderRadius: "6px",
+                    alignItems: "flex-end",
+                  }}
+                >
+                  <div style={{ flex: 2 }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "5px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Product
+                    </label>
+                    <select
+                      value={item.productId}
+                      onChange={(e) =>
+                        updateOrderItem(index, "productId", e.target.value)
+                      }
+                      className="form-input"
+                      required
+                    >
+                      <option value="">Select a product...</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} (Stock: {product.stock})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "5px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        updateOrderItem(index, "quantity", e.target.value)
+                      }
+                      className="form-input"
+                      min="1"
+                      required
+                    />
+                  </div>
+                  {newOrder.items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeOrderItem(index)}
+                      className="button"
+                      style={{
+                        padding: "8px 12px",
+                        backgroundColor: "#ef4444",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <i className="fas fa-trash"></i>
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+                <button type="submit" className="button">
+                  <i className="fas fa-save"></i> Create Order
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddOrderForm(false);
+                    setNewOrder({
+                      customerId: "",
+                      items: [{ productId: "", quantity: "" }],
+                    });
+                  }}
+                  className="button"
+                  style={{ backgroundColor: "#6b7280" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Import Orders from CSV */}
       <div className="section">
@@ -1351,8 +1750,8 @@ const deleteWorker = async (workerId) => {
                 <tr className="table-header">
                   <th>Order ID</th>
                   <th>Customer</th>
-                  <th>Product</th>
-                  <th>Quantity</th>
+                  <th>Items</th>
+                  <th>Total Quantity</th>
                   <th>Created</th>
                   <th>Status</th>
                   <th>Action</th>
@@ -1363,8 +1762,26 @@ const deleteWorker = async (workerId) => {
                   <tr key={order.id} className="table-row">
                     <td>#{order.id}</td>
                     <td>{order.customerName}</td>
-                    <td>{order.productName}</td>
-                    <td>{order.quantity}</td>
+                    <td>
+                      {order.items.length > 0 ? (
+                        <div style={{ fontSize: "12px" }}>
+                          {order.items.map((item, idx) => (
+                            <div key={item.id} style={{ marginBottom: "2px" }}>
+                              {item.productName} (×{item.quantity})
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span style={{ color: "#6b7280" }}>No items</span>
+                      )}
+                    </td>
+                    <td>
+                      {order.items.reduce(
+                        (sum, item) => sum + item.quantity,
+                        0,
+                      )}{" "}
+                      units
+                    </td>
                     <td>{new Date(order.createdAt).toLocaleString()}</td>
                     <td>
                       <span
@@ -1745,6 +2162,39 @@ const deleteWorker = async (workerId) => {
                   />
                 </div>
               </div>
+              <div className="form-group">
+                <label>Link to User Account (Optional)</label>
+                <select
+                  value={newWorker.userId || ""}
+                  onChange={(e) =>
+                    setNewWorker({
+                      ...newWorker,
+                      userId: e.target.value || null,
+                    })
+                  }
+                  className="form-input"
+                >
+                  <option value="">No user account</option>
+                  {users
+                    .filter(
+                      (user) => !workers.some((w) => w.userId === user.id),
+                    ) // Only show unlinked users
+                    .map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.username} ({user.email})
+                      </option>
+                    ))}
+                </select>
+                <small
+                  style={{
+                    color: "#6b7280",
+                    display: "block",
+                    marginTop: "5px",
+                  }}
+                >
+                  Link this worker to a user account to give them system access
+                </small>
+              </div>
               <button type="submit" className="button">
                 <i className="fas fa-save"></i> Add Worker
               </button>
@@ -1769,6 +2219,7 @@ const deleteWorker = async (workerId) => {
                   <th>Email</th>
                   <th>Role</th>
                   <th>Phone</th>
+                  <th>User Account</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -1837,6 +2288,33 @@ const deleteWorker = async (workerId) => {
                           />
                         </td>
                         <td>
+                          <select
+                            value={editingWorker.userId || ""}
+                            onChange={(e) => {
+                              const newUserId = e.target.value || null;
+                              console.log("Changing userId to:", newUserId);
+                              setEditingWorker({
+                                ...editingWorker,
+                                userId: newUserId,
+                              });
+                            }}
+                            className="form-input"
+                          >
+                            <option value="">No user account</option>
+                            {users
+                              .filter(
+                                (user) =>
+                                  user.id === editingWorker.userId || // Current linked user
+                                  !workers.some((w) => w.userId === user.id), // Or unlinked users
+                              )
+                              .map((user) => (
+                                <option key={user.id} value={user.id}>
+                                  {user.username}
+                                </option>
+                              ))}
+                          </select>
+                        </td>
+                        <td>
                           <span
                             className={`badge ${worker.active ? "badge-green" : "badge-orange"}`}
                           >
@@ -1846,9 +2324,19 @@ const deleteWorker = async (workerId) => {
                         <td>
                           <div style={{ display: "flex", gap: "5px" }}>
                             <button
-                              onClick={() =>
-                                updateWorker(worker.id, editingWorker)
-                              }
+                              onClick={() => {
+                                console.log(
+                                  "Saving worker with:",
+                                  editingWorker,
+                                ); // Debug log
+                                updateWorker(worker.id, {
+                                  name: editingWorker.name,
+                                  email: editingWorker.email,
+                                  role: editingWorker.role,
+                                  phone: editingWorker.phone,
+                                  userId: editingWorker.userId || null,
+                                });
+                              }}
                               className="button"
                               style={{ padding: "6px 12px", fontSize: "12px" }}
                             >
@@ -1877,6 +2365,21 @@ const deleteWorker = async (workerId) => {
                         <td>{worker.role}</td>
                         <td>{worker.phone || "-"}</td>
                         <td>
+                          {worker.userId ? (
+                            <span className="badge badge-green">
+                              <i className="fas fa-user-check"></i>
+                              {worker.username}
+                            </span>
+                          ) : (
+                            <span
+                              className="badge"
+                              style={{ backgroundColor: "#6b7280" }}
+                            >
+                              <i className="fas fa-user-slash"></i> No account
+                            </span>
+                          )}
+                        </td>
+                        <td>
                           <span
                             className={`badge ${worker.active ? "badge-green" : "badge-orange"}`}
                           >
@@ -1886,7 +2389,12 @@ const deleteWorker = async (workerId) => {
                         <td>
                           <div style={{ display: "flex", gap: "5px" }}>
                             <button
-                              onClick={() => setEditingWorker(worker)}
+                              onClick={() =>
+                                setEditingWorker({
+                                  ...worker,
+                                  userId: worker.userId, // Explicitly ensure userId is set correctly
+                                })
+                              }
                               className="button"
                               style={{ padding: "6px 12px", fontSize: "12px" }}
                             >
@@ -1935,266 +2443,278 @@ const deleteWorker = async (workerId) => {
   );
 
   // Customers page
-const renderCustomersPage = () => (
-  <>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-      <h1 className="page-title" style={{ margin: 0 }}>
-        <i className="fas fa-address-book"></i> Customers Management
-      </h1>
-      <button
-        onClick={() => setShowAddCustomerForm(!showAddCustomerForm)}
-        className="button"
-        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-      >
-        <i className={`fas fa-${showAddCustomerForm ? 'times' : 'plus'}`}></i>
-        {showAddCustomerForm ? 'Cancel' : 'Add Customer'}
-      </button>
-    </div>
-
-    {/* Add Customer Form */}
-    {showAddCustomerForm && (
-      <div className="section">
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Add New Customer</h3>
-          <form onSubmit={addCustomer}>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Name *</label>
-                <input
-                  type="text"
-                  value={newCustomer.name}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                  className="form-input"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Email</label>
-                <input
-                  type="email"
-                  value={newCustomer.email}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Phone</label>
-                <input
-                  type="tel"
-                  value={newCustomer.phone}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                  className="form-input"
-                  placeholder="555-0100"
-                />
-              </div>
-              <div className="form-group">
-                <label>Company</label>
-                <input
-                  type="text"
-                  value={newCustomer.company}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Address</label>
-              <textarea
-                value={newCustomer.address}
-                onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
-                className="form-input"
-                rows="2"
-              />
-            </div>
-            <button type="submit" className="button">
-              <i className="fas fa-save"></i> Add Customer
-            </button>
-          </form>
-        </div>
-      </div>
-    )}
-
-    {/* Customers List */}
-    <div className="section">
-      <div className="card">
-        {customers.length === 0 ? (
-          <p className="empty-state">No customers yet. Add your first customer above!</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr className="table-header">
-                <th>ID</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Company</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.map((customer) => (
-                <tr key={customer.id} className="table-row">
-                  {editingCustomer?.id === customer.id ? (
-                    // Edit mode
-                    <>
-                      <td>{customer.id}</td>
-                      <td>
-                        <input
-                          type="text"
-                          value={editingCustomer.name}
-                          onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
-                          className="form-input"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="email"
-                          value={editingCustomer.email || ''}
-                          onChange={(e) => setEditingCustomer({ ...editingCustomer, email: e.target.value })}
-                          className="form-input"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="tel"
-                          value={editingCustomer.phone || ''}
-                          onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
-                          className="form-input"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          value={editingCustomer.company || ''}
-                          onChange={(e) => setEditingCustomer({ ...editingCustomer, company: e.target.value })}
-                          className="form-input"
-                        />
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '5px' }}>
-                          <button
-                            onClick={() => updateCustomer(customer.id, editingCustomer)}
-                            className="button"
-                            style={{ padding: '6px 12px', fontSize: '12px' }}
-                          >
-                            <i className="fas fa-check"></i>
-                          </button>
-                          <button
-                            onClick={() => setEditingCustomer(null)}
-                            className="button"
-                            style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#6b7280' }}
-                          >
-                            <i className="fas fa-times"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </>
-                  ) : (
-                    // View mode
-                    <>
-                      <td>{customer.id}</td>
-                      <td>{customer.name}</td>
-                      <td>{customer.email || '-'}</td>
-                      <td>{customer.phone || '-'}</td>
-                      <td>{customer.company || '-'}</td>
-                      <td>
-                        <button
-                          onClick={() => setEditingCustomer(customer)}
-                          className="button"
-                          style={{ padding: '6px 12px', fontSize: '12px' }}
-                        >
-                          <i className="fas fa-edit"></i> Edit
-                        </button>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  </>
-);
-
-// Users page (Admin only)
-const renderUsersPage = () => {
-  // Double-check user is admin
-  if (currentUser?.role !== 'admin') {
-    return (
-      <div className="section">
-        <div className="card">
-          <p className="empty-state">Access Denied. Admin privileges required.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
+  const renderCustomersPage = () => (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "30px",
+        }}
+      >
         <h1 className="page-title" style={{ margin: 0 }}>
-          <i className="fas fa-users-cog"></i> User Management
+          <i className="fas fa-address-book"></i> Customers Management
         </h1>
+        <button
+          onClick={() => setShowAddCustomerForm(!showAddCustomerForm)}
+          className="button"
+          style={{ display: "flex", alignItems: "center", gap: "8px" }}
+        >
+          <i className={`fas fa-${showAddCustomerForm ? "times" : "plus"}`}></i>
+          {showAddCustomerForm ? "Cancel" : "Add Customer"}
+        </button>
       </div>
 
-      {/* Users List */}
+      {/* Add Customer Form */}
+      {showAddCustomerForm && (
+        <div className="section">
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>Add New Customer</h3>
+            <form onSubmit={addCustomer}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Name *</label>
+                  <input
+                    type="text"
+                    value={newCustomer.name}
+                    onChange={(e) =>
+                      setNewCustomer({ ...newCustomer, name: e.target.value })
+                    }
+                    className="form-input"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Email</label>
+                  <input
+                    type="email"
+                    value={newCustomer.email}
+                    onChange={(e) =>
+                      setNewCustomer({ ...newCustomer, email: e.target.value })
+                    }
+                    className="form-input"
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Phone</label>
+                  <input
+                    type="tel"
+                    value={newCustomer.phone}
+                    onChange={(e) =>
+                      setNewCustomer({ ...newCustomer, phone: e.target.value })
+                    }
+                    className="form-input"
+                    placeholder="555-0100"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Company</label>
+                  <input
+                    type="text"
+                    value={newCustomer.company}
+                    onChange={(e) =>
+                      setNewCustomer({
+                        ...newCustomer,
+                        company: e.target.value,
+                      })
+                    }
+                    className="form-input"
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Address</label>
+                <textarea
+                  value={newCustomer.address}
+                  onChange={(e) =>
+                    setNewCustomer({ ...newCustomer, address: e.target.value })
+                  }
+                  className="form-input"
+                  rows="2"
+                />
+              </div>
+              <button type="submit" className="button">
+                <i className="fas fa-save"></i> Add Customer
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Customers List */}
       <div className="section">
         <div className="card">
-          {users.length === 0 ? (
-            <p className="empty-state">No users found.</p>
+          <p
+            style={{
+              marginTop: 0,
+              marginBottom: "15px",
+              color: "#6b7280",
+              fontSize: "14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <i className="fas fa-info-circle"></i>
+            Click on any customer to view their order history and details
+          </p>
+          {customers.length === 0 ? (
+            <p className="empty-state">
+              No customers yet. Add your first customer above!
+            </p>
           ) : (
             <table className="table">
               <thead>
                 <tr className="table-header">
                   <th>ID</th>
-                  <th>Username</th>
+                  <th>Name</th>
                   <th>Email</th>
-                  <th>Role</th>
-                  <th>Created</th>
+                  <th>Phone</th>
+                  <th>Company</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="table-row">
-                    <td>{user.id}</td>
-                    <td>{user.username}</td>
-                    <td>{user.email}</td>
-                    <td>
-                      <span className={`badge ${user.role === 'admin' ? 'badge-green' : 'badge-orange'}`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td>{new Date(user.created_at).toLocaleDateString()}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '5px' }}>
-                        <button
-                          onClick={() => {
-                            const newRole = user.role === 'admin' ? 'user' : 'admin';
-                            if (window.confirm(`Change ${user.username}'s role to ${newRole}?`)) {
-                              updateUser(user.id, { role: newRole });
-                            }
-                          }}
-                          className="button"
-                          style={{ padding: '6px 12px', fontSize: '12px' }}
-                        >
-                          <i className="fas fa-exchange-alt"></i> Toggle Role
-                        </button>
-                        {user.id !== currentUser.userId && (
+                {customers.map((customer) => (
+                  <tr
+                    key={customer.id}
+                    className="table-row"
+                    style={{
+                      cursor:
+                        editingCustomer?.id === customer.id
+                          ? "default"
+                          : "pointer",
+                    }}
+                    onClick={() => {
+                      if (!editingCustomer) {
+                        fetchCustomerOrders(customer.id);
+                      }
+                    }}
+                  >
+                    {editingCustomer?.id === customer.id ? (
+                      // Edit mode (prevent click-through)
+                      <td onClick={(e) => e.stopPropagation()} colSpan="6">
+                        {/* Your existing edit form - wrap it in a single td */}
+                        <table style={{ width: "100%" }}>
+                          <tbody>
+                            <tr>
+                              <td>{customer.id}</td>
+                              <td>
+                                <input
+                                  type="text"
+                                  value={editingCustomer.name}
+                                  onChange={(e) =>
+                                    setEditingCustomer({
+                                      ...editingCustomer,
+                                      name: e.target.value,
+                                    })
+                                  }
+                                  className="form-input"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="email"
+                                  value={editingCustomer.email || ""}
+                                  onChange={(e) =>
+                                    setEditingCustomer({
+                                      ...editingCustomer,
+                                      email: e.target.value,
+                                    })
+                                  }
+                                  className="form-input"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="tel"
+                                  value={editingCustomer.phone || ""}
+                                  onChange={(e) =>
+                                    setEditingCustomer({
+                                      ...editingCustomer,
+                                      phone: e.target.value,
+                                    })
+                                  }
+                                  className="form-input"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  value={editingCustomer.company || ""}
+                                  onChange={(e) =>
+                                    setEditingCustomer({
+                                      ...editingCustomer,
+                                      company: e.target.value,
+                                    })
+                                  }
+                                  className="form-input"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", gap: "5px" }}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateCustomer(
+                                        customer.id,
+                                        editingCustomer,
+                                      );
+                                    }}
+                                    className="button"
+                                    style={{
+                                      padding: "6px 12px",
+                                      fontSize: "12px",
+                                    }}
+                                  >
+                                    <i className="fas fa-check"></i>
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingCustomer(null);
+                                    }}
+                                    className="button"
+                                    style={{
+                                      padding: "6px 12px",
+                                      fontSize: "12px",
+                                      backgroundColor: "#6b7280",
+                                    }}
+                                  >
+                                    <i className="fas fa-times"></i>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    ) : (
+                      // View mode - clickable
+                      <>
+                        <td>{customer.id}</td>
+                        <td>{customer.name}</td>
+                        <td>{customer.email || "-"}</td>
+                        <td>{customer.phone || "-"}</td>
+                        <td>{customer.company || "-"}</td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <button
-                            onClick={() => deleteUser(user.id)}
+                            onClick={() => setEditingCustomer(customer)}
                             className="button"
-                            style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#ef4444' }}
+                            style={{ padding: "6px 12px", fontSize: "12px" }}
                           >
-                            <i className="fas fa-trash"></i>
+                            <i className="fas fa-edit"></i> Edit
                           </button>
-                        )}
-                      </div>
-                    </td>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -2202,9 +2722,367 @@ const renderUsersPage = () => {
           )}
         </div>
       </div>
+      {/* Customer Details Modal */}
+      {selectedCustomer && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setSelectedCustomer(null);
+            setCustomerOrders([]);
+          }}
+        >
+          <div
+            className="modal-content"
+            style={{ maxWidth: "900px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>
+                <i className="fas fa-user"></i> Customer Details
+              </h2>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setSelectedCustomer(null);
+                  setCustomerOrders([]);
+                }}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Customer Info Section */}
+              <div className="detail-section">
+                <h3>Customer Information</h3>
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <label>Customer ID:</label>
+                    <span>#{selectedCustomer.id}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Name:</label>
+                    <span>{selectedCustomer.name}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Email:</label>
+                    <span>{selectedCustomer.email || "Not provided"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Phone:</label>
+                    <span>{selectedCustomer.phone || "Not provided"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Company:</label>
+                    <span>{selectedCustomer.company || "Not provided"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Address:</label>
+                    <span>{selectedCustomer.address || "Not provided"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Statistics Section */}
+              <div className="detail-section">
+                <h3>Order Statistics</h3>
+                <div
+                  className="stats-grid"
+                  style={{ gridTemplateColumns: "repeat(4, 1fr)", gap: "15px" }}
+                >
+                  <div className="stat-card" style={{ padding: "15px" }}>
+                    <div className="stat-icon" style={{ fontSize: "24px" }}>
+                      <i
+                        className="fas fa-shopping-cart"
+                        style={{ color: "#3b82f6" }}
+                      ></i>
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-value">{customerOrders.length}</div>
+                      <div className="stat-label">Total Orders</div>
+                    </div>
+                  </div>
+                  <div className="stat-card" style={{ padding: "15px" }}>
+                    <div className="stat-icon" style={{ fontSize: "24px" }}>
+                      <i
+                        className="fas fa-box"
+                        style={{ color: "#10b981" }}
+                      ></i>
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-value">
+                        {customerOrders.reduce(
+                          (sum, order) =>
+                            sum +
+                            order.items.reduce(
+                              (itemSum, item) => itemSum + item.quantity,
+                              0,
+                            ),
+                          0,
+                        )}
+                      </div>
+                      <div className="stat-label">Total Items</div>
+                    </div>
+                  </div>
+                  <div className="stat-card" style={{ padding: "15px" }}>
+                    <div className="stat-icon" style={{ fontSize: "24px" }}>
+                      <i
+                        className="fas fa-clock"
+                        style={{ color: "#f59e0b" }}
+                      ></i>
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-value">
+                        {
+                          customerOrders.filter((o) => o.status === "pending")
+                            .length
+                        }
+                      </div>
+                      <div className="stat-label">Pending</div>
+                    </div>
+                  </div>
+                  <div className="stat-card" style={{ padding: "15px" }}>
+                    <div className="stat-icon" style={{ fontSize: "24px" }}>
+                      <i
+                        className="fas fa-check-circle"
+                        style={{ color: "#8b5cf6" }}
+                      ></i>
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-value">
+                        {
+                          customerOrders.filter((o) => o.status === "processed")
+                            .length
+                        }
+                      </div>
+                      <div className="stat-label">Processed</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order History Section */}
+              <div className="detail-section">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "15px",
+                  }}
+                >
+                  <h3 style={{ margin: 0 }}>Order History</h3>
+                  <button
+                    onClick={() => {
+                      setNewOrder({
+                        customerId: selectedCustomer.id,
+                        items: [{ productId: "", quantity: "" }],
+                      });
+                      setSelectedCustomer(null);
+                      setCustomerOrders([]);
+                      setCurrentPage("orders");
+                      setShowAddOrderForm(true);
+                    }}
+                    className="button"
+                    style={{ fontSize: "14px", padding: "8px 16px" }}
+                  >
+                    <i className="fas fa-plus"></i> Create Order for{" "}
+                    {selectedCustomer.name}
+                  </button>
+                </div>
+
+                {customerOrders.length === 0 ? (
+                  <p className="empty-state">
+                    No orders yet for this customer.
+                  </p>
+                ) : (
+                  <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                    <table className="table">
+                      <thead>
+                        <tr className="table-header">
+                          <th>Order ID</th>
+                          <th>Items</th>
+                          <th>Total Qty</th>
+                          <th>Date</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {customerOrders.map((order) => (
+                          <tr key={order.id} className="table-row">
+                            <td>#{order.id}</td>
+                            <td>
+                              <div style={{ fontSize: "12px" }}>
+                                {order.items.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    style={{ marginBottom: "2px" }}
+                                  >
+                                    {item.productName} (×{item.quantity})
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td>
+                              {order.items.reduce(
+                                (sum, item) => sum + item.quantity,
+                                0,
+                              )}{" "}
+                              units
+                            </td>
+                            <td>
+                              {new Date(order.createdAt).toLocaleDateString()}
+                            </td>
+                            <td>
+                              <span
+                                className={`badge ${order.status === "pending" ? "badge-orange" : "badge-green"}`}
+                              >
+                                {order.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Actions */}
+              <div className="modal-actions">
+                <button
+                  onClick={() => {
+                    setEditingCustomer(selectedCustomer);
+                    setSelectedCustomer(null);
+                    setCustomerOrders([]);
+                  }}
+                  className="button"
+                >
+                  <i className="fas fa-edit"></i> Edit Customer
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedCustomer(null);
+                    setCustomerOrders([]);
+                  }}
+                  className="button"
+                  style={{ backgroundColor: "#6b7280" }}
+                >
+                  <i className="fas fa-times"></i> Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
-};
+
+  // Users page (Admin only)
+  const renderUsersPage = () => {
+    // Double-check user is admin
+    if (currentUser?.role !== "admin") {
+      return (
+        <div className="section">
+          <div className="card">
+            <p className="empty-state">
+              Access Denied. Admin privileges required.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "30px",
+          }}
+        >
+          <h1 className="page-title" style={{ margin: 0 }}>
+            <i className="fas fa-users-cog"></i> User Management
+          </h1>
+        </div>
+
+        {/* Users List */}
+        <div className="section">
+          <div className="card">
+            {users.length === 0 ? (
+              <p className="empty-state">No users found.</p>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr className="table-header">
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr key={user.id} className="table-row">
+                      <td>{user.id}</td>
+                      <td>{user.username}</td>
+                      <td>{user.email}</td>
+                      <td>
+                        <span
+                          className={`badge ${user.role === "admin" ? "badge-green" : "badge-orange"}`}
+                        >
+                          {user.role}
+                        </span>
+                      </td>
+                      <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: "5px" }}>
+                          <button
+                            onClick={() => {
+                              const newRole =
+                                user.role === "admin" ? "user" : "admin";
+                              if (
+                                window.confirm(
+                                  `Change ${user.username}'s role to ${newRole}?`,
+                                )
+                              ) {
+                                updateUser(user.id, { role: newRole });
+                              }
+                            }}
+                            className="button"
+                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                          >
+                            <i className="fas fa-exchange-alt"></i> Toggle Role
+                          </button>
+                          {user.id !== currentUser.userId && (
+                            <button
+                              onClick={() => deleteUser(user.id)}
+                              className="button"
+                              style={{
+                                padding: "6px 12px",
+                                fontSize: "12px",
+                                backgroundColor: "#ef4444",
+                              }}
+                            >
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
 
   // Login/Register page
   const renderAuthPage = () => (
@@ -2454,7 +3332,7 @@ const renderUsersPage = () => {
                 <i className="fas fa-users"></i>
                 {!sidebarCollapsed && <span> Workers</span>}
               </button>
-              {currentUser?.role === 'admin' && (
+              {currentUser?.role === "admin" && (
                 <button
                   className={`nav-item ${currentPage === "users" ? "active" : ""}`}
                   onClick={() => setCurrentPage("users")}
@@ -2463,7 +3341,7 @@ const renderUsersPage = () => {
                   <i className="fas fa-users-cog"></i>
                   {!sidebarCollapsed && <span> Users</span>}
                 </button>
-)}
+              )}
               <button
                 className="nav-item"
                 onClick={handleLogout}
