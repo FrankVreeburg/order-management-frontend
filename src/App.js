@@ -71,6 +71,8 @@ function App() {
   const [editingStock, setEditingStock] = useState("");
   const [customers, setCustomers] = useState([]);
   const [users, setUsers] = useState([]);
+  const [settings, setSettings] = useState({});
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [showAddCustomerForm, setShowAddCustomerForm] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
@@ -87,16 +89,80 @@ function App() {
   });
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerOrders, setCustomerOrders] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
+  const [editOrderItems, setEditOrderItems] = useState([]);
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editingItemQuantity, setEditingItemQuantity] = useState("");
+  const [showAddItemForm, setShowAddItemForm] = useState(false);
+  const [newItemToAdd, setNewItemToAdd] = useState({
+    productId: "",
+    quantity: "",
+  });
+  const [settingsActiveTab, setSettingsActiveTab] = useState("branding");
+  const [tempSettings, setTempSettings] = useState({});
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchProducts();
-      fetchOrders();
-      fetchWorkers();
-      fetchCustomers();
-      fetchUsers();
+      // Fetch all data in parallel instead of sequentially
+      Promise.all([
+        fetchProducts(),
+        fetchOrders(),
+        fetchWorkers(),
+        fetchCustomers(),
+        fetchUsers(),
+        fetchSettings(),
+      ]).catch((error) => {
+        console.error("Error loading initial data:", error);
+      });
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    setTempSettings({ ...settings });
+  }, [settings]);
+
+  // Apply settings to CSS variables (add this with your other useEffects)
+  useEffect(() => {
+    if (settings && Object.keys(settings).length > 0) {
+      // Apply color settings as CSS variables
+      const root = document.documentElement;
+
+      root.style.setProperty(
+        "--color-primary",
+        settings.color_primary || "#3b82f6",
+      );
+      root.style.setProperty(
+        "--color-secondary",
+        settings.color_secondary || "#1e40af",
+      );
+      root.style.setProperty(
+        "--color-sidebar",
+        settings.color_sidebar || "#1f2937",
+      );
+      root.style.setProperty(
+        "--color-sidebar-text",
+        settings.color_sidebar_text || "#ffffff",
+      );
+      root.style.setProperty(
+        "--color-success",
+        settings.color_success || "#10b981",
+      );
+      root.style.setProperty(
+        "--color-warning",
+        settings.color_warning || "#f59e0b",
+      );
+      root.style.setProperty(
+        "--color-danger",
+        settings.color_danger || "#ef4444",
+      );
+
+      // Apply company name to page title
+      document.title = settings.company_name || "OrderFlow";
+    }
+  }, [settings]);
 
   // Helper function to make authenticated API requests
   const fetchWithAuth = async (url, options = {}) => {
@@ -162,6 +228,13 @@ function App() {
         customerCompany: order.customer_company || "",
         status: order.status || "pending",
         createdAt: order.created_at || new Date(),
+        assignedPickerId: order.assigned_picker_id || null,
+        assignedPackerId: order.assigned_packer_id || null,
+        pickerName: order.picker_name || null,
+        packerName: order.packer_name || null,
+        pickedAt: order.picked_at || null,
+        packedAt: order.packed_at || null,
+        shippedAt: order.shipped_at || null,
         items: order.items.map((item) => ({
           id: item.id,
           productId: parseInt(item.product_id) || 0,
@@ -239,6 +312,154 @@ function App() {
     }
   };
 
+  // Fetch single order with full details
+  const fetchOrderDetails = async (orderId) => {
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/orders/${orderId}`,
+      );
+      const data = await response.json();
+
+      const convertedOrder = {
+        id: data.id,
+        customerId: parseInt(data.customer_id) || 0,
+        customerName: data.customer_name || "",
+        customerEmail: data.customer_email || "",
+        customerCompany: data.customer_company || "",
+        customerPhone: data.customer_phone || "",
+        customerAddress: data.customer_address || "",
+        status: data.status || "pending",
+        createdAt: data.created_at || new Date(),
+        assignedPickerId: data.assigned_picker_id || null,
+        assignedPackerId: data.assigned_packer_id || null,
+        pickerName: data.picker_name || null,
+        pickerEmail: data.picker_email || null,
+        packerName: data.packer_name || null,
+        packerEmail: data.packer_email || null,
+        pickedAt: data.picked_at || null,
+        packedAt: data.packed_at || null,
+        shippedAt: data.shipped_at || null,
+        items: data.items.map((item) => ({
+          id: item.id,
+          productId: parseInt(item.product_id) || 0,
+          productName: item.product_name || "",
+          quantity: parseInt(item.quantity) || 0,
+          priceAtOrder: parseFloat(item.price_at_order) || 0,
+        })),
+      };
+
+      setSelectedOrder(convertedOrder);
+      setEditOrderItems([...convertedOrder.items]);
+      setIsEditingOrder(false);
+    } catch (error) {
+      console.error("Error fetching order details:", error);
+      alert("Failed to fetch order details");
+    }
+  };
+
+  // Update order status
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/orders/${orderId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status: newStatus }),
+        },
+      );
+
+      const data = await response.json();
+
+      const convertedOrder = {
+        id: data.id,
+        customerId: parseInt(data.customer_id) || 0,
+        customerName: data.customer_name || "",
+        status: data.status || "pending",
+        createdAt: data.created_at || new Date(),
+        assignedPickerId: data.assigned_picker_id || null,
+        assignedPackerId: data.assigned_packer_id || null,
+        pickerName: data.picker_name || null,
+        packerName: data.packer_name || null,
+        pickedAt: data.picked_at || null,
+        packedAt: data.packed_at || null,
+        shippedAt: data.shipped_at || null,
+        items: data.items.map((item) => ({
+          id: item.id,
+          productId: parseInt(item.product_id) || 0,
+          productName: item.product_name || "",
+          quantity: parseInt(item.quantity) || 0,
+          priceAtOrder: parseFloat(item.price_at_order) || 0,
+        })),
+      };
+
+      // Update in orders list
+      setOrders(orders.map((o) => (o.id === orderId ? convertedOrder : o)));
+
+      // Update selected order if it's open
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(convertedOrder);
+        setEditOrderItems([...convertedOrder.items]);
+      }
+
+      alert(`Order #${orderId} status updated to "${newStatus}"!`);
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      alert("Failed to update order status");
+    }
+  };
+
+  // Assign worker to order
+  const assignWorker = async (orderId, role, workerId) => {
+    try {
+      const field = role === "picker" ? "assignedPickerId" : "assignedPackerId";
+
+      const response = await fetchWithAuth(
+        `http://localhost:3000/orders/${orderId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ [field]: workerId }),
+        },
+      );
+
+      const data = await response.json();
+
+      const convertedOrder = {
+        id: data.id,
+        customerId: parseInt(data.customer_id) || 0,
+        customerName: data.customer_name || "",
+        status: data.status || "pending",
+        createdAt: data.created_at || new Date(),
+        assignedPickerId: data.assigned_picker_id || null,
+        assignedPackerId: data.assigned_packer_id || null,
+        pickerName: data.picker_name || null,
+        packerName: data.packer_name || null,
+        pickedAt: data.picked_at || null,
+        packedAt: data.packed_at || null,
+        shippedAt: data.shipped_at || null,
+        items: data.items.map((item) => ({
+          id: item.id,
+          productId: parseInt(item.product_id) || 0,
+          productName: item.product_name || "",
+          quantity: parseInt(item.quantity) || 0,
+          priceAtOrder: parseFloat(item.price_at_order) || 0,
+        })),
+      };
+
+      setOrders(orders.map((o) => (o.id === orderId ? convertedOrder : o)));
+
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(convertedOrder);
+      }
+
+      const workerName =
+        workers.find((w) => w.id === workerId)?.name || "Worker";
+      alert(`${workerName} assigned as ${role}!`);
+    } catch (error) {
+      console.error("Error assigning worker:", error);
+      alert("Failed to assign worker");
+    }
+  };
+
   const fetchUsers = async () => {
     // Only fetch if user is admin
     if (currentUser?.role !== "admin") return;
@@ -249,6 +470,99 @@ function App() {
       setUsers(data);
     } catch (error) {
       console.error("Error fetching users:", error);
+    }
+  };
+
+  // Fetch all settings
+  const fetchSettings = async () => {
+    try {
+      setIsLoadingSettings(true);
+      const response = await fetchWithAuth("http://localhost:3000/settings");
+      const data = await response.json();
+
+      // Convert to simple key-value format
+      const settingsMap = {};
+      Object.keys(data).forEach((key) => {
+        settingsMap[key] = data[key].value;
+      });
+
+      setSettings(settingsMap);
+      setIsLoadingSettings(false);
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      setIsLoadingSettings(false);
+    }
+  };
+
+  // Update settings
+  const updateSettings = async (updatedSettings) => {
+    try {
+      const response = await fetchWithAuth("http://localhost:3000/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ settings: updatedSettings }),
+      });
+
+      const data = await response.json();
+
+      // Refresh settings
+      await fetchSettings();
+
+      alert("Settings updated successfully!");
+    } catch (error) {
+      console.error("Error updating settings:", error);
+      alert("Failed to update settings");
+    }
+  };
+
+  // Upload logo
+  const uploadLogo = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append("logo", file);
+
+      const token = localStorage.getItem("authToken");
+      const response = await fetch("http://localhost:3000/settings/logo", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const data = await response.json();
+
+      // Refresh settings to get new logo URL
+      await fetchSettings();
+
+      alert("Logo uploaded successfully!");
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      alert("Failed to upload logo");
+    }
+  };
+
+  // Delete logo
+  const deleteLogo = async () => {
+    if (!window.confirm("Are you sure you want to remove the logo?")) {
+      return;
+    }
+
+    try {
+      await fetchWithAuth("http://localhost:3000/settings/logo", {
+        method: "DELETE",
+      });
+
+      // Refresh settings
+      await fetchSettings();
+
+      alert("Logo removed successfully!");
+    } catch (error) {
+      console.error("Error deleting logo:", error);
+      alert("Failed to delete logo");
     }
   };
 
@@ -385,21 +699,147 @@ function App() {
     });
   };
 
-  const removeOrderItem = (index) => {
-    const newItems = newOrder.items.filter((_, i) => i !== index);
-    setNewOrder({
-      ...newOrder,
-      items: newItems.length > 0 ? newItems : [{ productId: "", quantity: "" }],
-    });
+  // Add item to existing order
+  const addItemToOrder = async (orderId, productId, quantity) => {
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/orders/${orderId}/items`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            productId: parseInt(productId),
+            quantity: parseInt(quantity),
+          }),
+        },
+      );
+
+      const newItem = await response.json();
+
+      // Convert to frontend format
+      const convertedItem = {
+        id: newItem.id,
+        productId: parseInt(newItem.product_id) || 0,
+        productName: newItem.product_name || "",
+        quantity: parseInt(newItem.quantity) || 0,
+        priceAtOrder: parseFloat(newItem.price_at_order) || 0,
+      };
+
+      // Update selected order
+      setSelectedOrder({
+        ...selectedOrder,
+        items: [...selectedOrder.items, convertedItem],
+      });
+
+      // Update in orders list
+      setOrders(
+        orders.map((o) => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              items: [...o.items, convertedItem],
+            };
+          }
+          return o;
+        }),
+      );
+
+      alert("Item added successfully!");
+    } catch (error) {
+      console.error("Error adding item:", error);
+      alert("Failed to add item");
+    }
   };
 
-  const updateOrderItem = (index, field, value) => {
-    const newItems = [...newOrder.items];
-    newItems[index][field] = value;
-    setNewOrder({
-      ...newOrder,
-      items: newItems,
-    });
+  // Update order item quantity
+  const updateOrderItem = async (orderId, itemId, newQuantity) => {
+    try {
+      const response = await fetchWithAuth(
+        `http://localhost:3000/orders/${orderId}/items/${itemId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ quantity: parseInt(newQuantity) }),
+        },
+      );
+
+      const updatedItem = await response.json();
+
+      // Convert to frontend format
+      const convertedItem = {
+        id: updatedItem.id,
+        productId: parseInt(updatedItem.product_id) || 0,
+        productName: updatedItem.product_name || "",
+        quantity: parseInt(updatedItem.quantity) || 0,
+        priceAtOrder: parseFloat(updatedItem.price_at_order) || 0,
+      };
+
+      // Update selected order
+      setSelectedOrder({
+        ...selectedOrder,
+        items: selectedOrder.items.map((item) =>
+          item.id === itemId ? convertedItem : item,
+        ),
+      });
+
+      // Update in orders list
+      setOrders(
+        orders.map((o) => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              items: o.items.map((item) =>
+                item.id === itemId ? convertedItem : item,
+              ),
+            };
+          }
+          return o;
+        }),
+      );
+
+      alert("Item updated successfully!");
+    } catch (error) {
+      console.error("Error updating item:", error);
+      alert("Failed to update item");
+    }
+  };
+
+  // Remove item from order
+  const removeOrderItem = async (orderId, itemId) => {
+    if (!window.confirm("Are you sure you want to remove this item?")) {
+      return;
+    }
+
+    try {
+      await fetchWithAuth(
+        `http://localhost:3000/orders/${orderId}/items/${itemId}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      // Update selected order
+      setSelectedOrder({
+        ...selectedOrder,
+        items: selectedOrder.items.filter((item) => item.id !== itemId),
+      });
+
+      // Update in orders list
+      setOrders(
+        orders.map((o) => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              items: o.items.filter((item) => item.id !== itemId),
+            };
+          }
+          return o;
+        }),
+      );
+
+      alert("Item removed successfully!");
+    } catch (error) {
+      console.error("Error removing item:", error);
+      alert("Failed to remove item");
+    }
   };
 
   const addOrder = async (e) => {
@@ -1200,6 +1640,8 @@ function App() {
         return renderCustomersPage();
       case "users":
         return renderUsersPage();
+      case "settings":
+        return renderSettingsPage();
       default:
         return renderHomePage();
     }
@@ -1687,8 +2129,29 @@ function App() {
 
       <div className="section">
         <div className="card">
+          <p
+            style={{
+              marginTop: 0,
+              marginBottom: "15px",
+              color: "#6b7280",
+              fontSize: "14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <i className="fas fa-info-circle"></i>
+            Click on any order to view full details and manage items
+          </p>
           {/* Filter buttons */}
-          <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
+          <div
+            style={{
+              marginBottom: "20px",
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+            }}
+          >
             <button
               onClick={() => setOrderFilter("all")}
               className="button"
@@ -1709,6 +2172,39 @@ function App() {
               }}
             >
               Pending ({orders.filter((o) => o.status === "pending").length})
+            </button>
+            <button
+              onClick={() => setOrderFilter("picked")}
+              className="button"
+              style={{
+                backgroundColor:
+                  orderFilter === "picked" ? "#3b82f6" : "#e5e7eb",
+                color: orderFilter === "picked" ? "white" : "#374151",
+              }}
+            >
+              Picked ({orders.filter((o) => o.status === "picked").length})
+            </button>
+            <button
+              onClick={() => setOrderFilter("packed")}
+              className="button"
+              style={{
+                backgroundColor:
+                  orderFilter === "packed" ? "#8b5cf6" : "#e5e7eb",
+                color: orderFilter === "packed" ? "white" : "#374151",
+              }}
+            >
+              Packed ({orders.filter((o) => o.status === "packed").length})
+            </button>
+            <button
+              onClick={() => setOrderFilter("shipped")}
+              className="button"
+              style={{
+                backgroundColor:
+                  orderFilter === "shipped" ? "#10b981" : "#e5e7eb",
+                color: orderFilter === "shipped" ? "white" : "#374151",
+              }}
+            >
+              Shipped ({orders.filter((o) => o.status === "shipped").length})
             </button>
             <button
               onClick={() => setOrderFilter("processed")}
@@ -1759,7 +2255,12 @@ function App() {
               </thead>
               <tbody>
                 {getSearchedAndFilteredOrders().map((order) => (
-                  <tr key={order.id} className="table-row">
+                  <tr
+                    key={order.id}
+                    className="table-row"
+                    onClick={() => fetchOrderDetails(order.id)}
+                    style={{ cursor: "pointer" }}
+                  >
                     <td>#{order.id}</td>
                     <td>{order.customerName}</td>
                     <td>
@@ -1785,18 +2286,47 @@ function App() {
                     <td>{new Date(order.createdAt).toLocaleString()}</td>
                     <td>
                       <span
-                        className={`badge ${order.status === "pending" ? "badge-orange" : "badge-green"}`}
+                        className={`badge ${
+                          order.status === "pending"
+                            ? "badge-orange"
+                            : order.status === "picked"
+                              ? "badge-blue"
+                              : order.status === "packed"
+                                ? "badge-purple"
+                                : order.status === "shipped"
+                                  ? "badge-green"
+                                  : "badge-orange"
+                        }`}
                       >
                         {order.status}
                       </span>
                     </td>
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       {order.status === "pending" && (
                         <button
-                          onClick={() => processOrder(order.id)}
+                          onClick={() => updateOrderStatus(order.id, "picked")}
                           className="button"
+                          style={{ fontSize: "12px", padding: "6px 12px" }}
                         >
-                          Process Order
+                          Mark Picked
+                        </button>
+                      )}
+                      {order.status === "picked" && (
+                        <button
+                          onClick={() => updateOrderStatus(order.id, "packed")}
+                          className="button"
+                          style={{ fontSize: "12px", padding: "6px 12px" }}
+                        >
+                          Mark Packed
+                        </button>
+                      )}
+                      {order.status === "packed" && (
+                        <button
+                          onClick={() => updateOrderStatus(order.id, "shipped")}
+                          className="button"
+                          style={{ fontSize: "12px", padding: "6px 12px" }}
+                        >
+                          Mark Shipped
                         </button>
                       )}
                     </td>
@@ -1807,6 +2337,640 @@ function App() {
           )}
         </div>
       </div>
+      {/* Order Details Modal */}
+      {selectedOrder && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setSelectedOrder(null);
+            setIsEditingOrder(false);
+            setEditOrderItems([]);
+            setEditingItemId(null);
+            setEditingItemQuantity("");
+            setShowAddItemForm(false);
+            setNewItemToAdd({ productId: "", quantity: "" });
+          }}
+        >
+          <div
+            className="modal-content"
+            style={{ maxWidth: "1000px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>
+                <i className="fas fa-file-invoice"></i> Order #
+                {selectedOrder.id}
+              </h2>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setSelectedOrder(null);
+                  setIsEditingOrder(false);
+                  setEditOrderItems([]);
+                  setEditingItemId(null);
+                  setEditingItemQuantity("");
+                  setShowAddItemForm(false);
+                  setNewItemToAdd({ productId: "", quantity: "" });
+                }}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Order Status & Progress */}
+              <div className="detail-section">
+                <h3>Order Status</h3>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "15px",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <span
+                    className={`badge ${
+                      selectedOrder.status === "pending"
+                        ? "badge-orange"
+                        : selectedOrder.status === "picked"
+                          ? "badge-blue"
+                          : selectedOrder.status === "packed"
+                            ? "badge-purple"
+                            : selectedOrder.status === "shipped"
+                              ? "badge-green"
+                              : "badge-orange"
+                    }`}
+                    style={{ fontSize: "16px", padding: "8px 16px" }}
+                  >
+                    <i
+                      className={`fas fa-${
+                        selectedOrder.status === "pending"
+                          ? "clock"
+                          : selectedOrder.status === "picked"
+                            ? "check"
+                            : selectedOrder.status === "packed"
+                              ? "box"
+                              : selectedOrder.status === "shipped"
+                                ? "truck"
+                                : "clock"
+                      }`}
+                    ></i>{" "}
+                    {selectedOrder.status.toUpperCase()}
+                  </span>
+
+                  {/* Status progression buttons */}
+                  {selectedOrder.status === "pending" && (
+                    <button
+                      onClick={() =>
+                        updateOrderStatus(selectedOrder.id, "picked")
+                      }
+                      className="button"
+                    >
+                      <i className="fas fa-arrow-right"></i> Mark as Picked
+                    </button>
+                  )}
+                  {selectedOrder.status === "picked" && (
+                    <button
+                      onClick={() =>
+                        updateOrderStatus(selectedOrder.id, "packed")
+                      }
+                      className="button"
+                    >
+                      <i className="fas fa-arrow-right"></i> Mark as Packed
+                    </button>
+                  )}
+                  {selectedOrder.status === "packed" && (
+                    <button
+                      onClick={() =>
+                        updateOrderStatus(selectedOrder.id, "shipped")
+                      }
+                      className="button"
+                    >
+                      <i className="fas fa-arrow-right"></i> Mark as Shipped
+                    </button>
+                  )}
+                </div>
+
+                {/* Timeline */}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "20px",
+                    fontSize: "13px",
+                    color: "#6b7280",
+                  }}
+                >
+                  <div>
+                    <strong>Created:</strong>{" "}
+                    {new Date(selectedOrder.createdAt).toLocaleString()}
+                  </div>
+                  {selectedOrder.pickedAt && (
+                    <div>
+                      <strong>Picked:</strong>{" "}
+                      {new Date(selectedOrder.pickedAt).toLocaleString()}
+                    </div>
+                  )}
+                  {selectedOrder.packedAt && (
+                    <div>
+                      <strong>Packed:</strong>{" "}
+                      {new Date(selectedOrder.packedAt).toLocaleString()}
+                    </div>
+                  )}
+                  {selectedOrder.shippedAt && (
+                    <div>
+                      <strong>Shipped:</strong>{" "}
+                      {new Date(selectedOrder.shippedAt).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Customer Information */}
+              <div className="detail-section">
+                <h3>Customer Information</h3>
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <label>Name:</label>
+                    <span>{selectedOrder.customerName}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Email:</label>
+                    <span>{selectedOrder.customerEmail || "Not provided"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Company:</label>
+                    <span>
+                      {selectedOrder.customerCompany || "Not provided"}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Phone:</label>
+                    <span>{selectedOrder.customerPhone || "Not provided"}</span>
+                  </div>
+                  {selectedOrder.customerAddress && (
+                    <div
+                      className="detail-item"
+                      style={{ gridColumn: "1 / -1" }}
+                    >
+                      <label>Address:</label>
+                      <span>{selectedOrder.customerAddress}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Worker Assignments */}
+              <div className="detail-section">
+                <h3>Worker Assignments</h3>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "20px",
+                  }}
+                >
+                  {/* Picker Assignment */}
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "8px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      <i className="fas fa-hand-pointer"></i> Assigned Picker
+                    </label>
+                    {selectedOrder.status === "pending" ? (
+                      <select
+                        value={selectedOrder.assignedPickerId || ""}
+                        onChange={(e) =>
+                          assignWorker(
+                            selectedOrder.id,
+                            "picker",
+                            parseInt(e.target.value) || null,
+                          )
+                        }
+                        className="form-input"
+                      >
+                        <option value="">No picker assigned</option>
+                        {workers
+                          .filter(
+                            (w) =>
+                              w.active &&
+                              (w.role === "Picker" ||
+                                w.role === "Supervisor" ||
+                                w.role === "Manager"),
+                          )
+                          .map((worker) => (
+                            <option key={worker.id} value={worker.id}>
+                              {worker.name}
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <div
+                        style={{
+                          padding: "10px",
+                          backgroundColor: "#f3f4f6",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        {selectedOrder.pickerName || "No picker assigned"}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Packer Assignment */}
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "8px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      <i className="fas fa-box"></i> Assigned Packer
+                    </label>
+                    {selectedOrder.status === "pending" ||
+                    selectedOrder.status === "picked" ? (
+                      <select
+                        value={selectedOrder.assignedPackerId || ""}
+                        onChange={(e) =>
+                          assignWorker(
+                            selectedOrder.id,
+                            "packer",
+                            parseInt(e.target.value) || null,
+                          )
+                        }
+                        className="form-input"
+                      >
+                        <option value="">No packer assigned</option>
+                        {workers
+                          .filter(
+                            (w) =>
+                              w.active &&
+                              (w.role === "Packer" ||
+                                w.role === "Supervisor" ||
+                                w.role === "Manager"),
+                          )
+                          .map((worker) => (
+                            <option key={worker.id} value={worker.id}>
+                              {worker.name}
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <div
+                        style={{
+                          padding: "10px",
+                          backgroundColor: "#f3f4f6",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        {selectedOrder.packerName || "No packer assigned"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Items */}
+              {/* Order Items */}
+              <div className="detail-section">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "15px",
+                  }}
+                >
+                  <h3 style={{ margin: 0 }}>Order Items</h3>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    {selectedOrder.status === "pending" && !showAddItemForm && (
+                      <button
+                        onClick={() => setShowAddItemForm(true)}
+                        className="button"
+                        style={{
+                          fontSize: "14px",
+                          padding: "6px 12px",
+                          backgroundColor: "#10b981",
+                        }}
+                      >
+                        <i className="fas fa-plus"></i> Add Item
+                      </button>
+                    )}
+                    {selectedOrder.status === "pending" && !isEditingOrder && (
+                      <button
+                        onClick={() => setIsEditingOrder(true)}
+                        className="button"
+                        style={{ fontSize: "14px", padding: "6px 12px" }}
+                      >
+                        <i className="fas fa-edit"></i> Edit Items
+                      </button>
+                    )}
+                    {isEditingOrder && (
+                      <button
+                        onClick={() => {
+                          setIsEditingOrder(false);
+                          setEditingItemId(null);
+                          setEditingItemQuantity("");
+                        }}
+                        className="button"
+                        style={{
+                          fontSize: "14px",
+                          padding: "6px 12px",
+                          backgroundColor: "#6b7280",
+                        }}
+                      >
+                        <i className="fas fa-times"></i> Done Editing
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Add Item Form */}
+                {showAddItemForm && (
+                  <div
+                    style={{
+                      marginBottom: "20px",
+                      padding: "15px",
+                      backgroundColor: "#f0fdf4",
+                      borderRadius: "8px",
+                      border: "2px solid #10b981",
+                    }}
+                  >
+                    <h4 style={{ marginTop: 0, color: "#065f46" }}>
+                      <i className="fas fa-plus-circle"></i> Add New Item to
+                      Order
+                    </h4>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        alignItems: "flex-end",
+                      }}
+                    >
+                      <div style={{ flex: 2 }}>
+                        <label
+                          style={{
+                            display: "block",
+                            marginBottom: "5px",
+                            fontWeight: "600",
+                            fontSize: "13px",
+                          }}
+                        >
+                          Product
+                        </label>
+                        <select
+                          value={newItemToAdd.productId}
+                          onChange={(e) =>
+                            setNewItemToAdd({
+                              ...newItemToAdd,
+                              productId: e.target.value,
+                            })
+                          }
+                          className="form-input"
+                        >
+                          <option value="">Select a product...</option>
+                          {products
+                            .filter(
+                              (p) =>
+                                !selectedOrder.items.some(
+                                  (item) => item.productId === p.id,
+                                ),
+                            )
+                            .map((product) => (
+                              <option key={product.id} value={product.id}>
+                                {product.name} (Stock: {product.stock})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label
+                          style={{
+                            display: "block",
+                            marginBottom: "5px",
+                            fontWeight: "600",
+                            fontSize: "13px",
+                          }}
+                        >
+                          Quantity
+                        </label>
+                        <input
+                          type="number"
+                          value={newItemToAdd.quantity}
+                          onChange={(e) =>
+                            setNewItemToAdd({
+                              ...newItemToAdd,
+                              quantity: e.target.value,
+                            })
+                          }
+                          className="form-input"
+                          min="1"
+                          placeholder="Qty"
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (
+                            !newItemToAdd.productId ||
+                            !newItemToAdd.quantity
+                          ) {
+                            alert("Please select a product and enter quantity");
+                            return;
+                          }
+                          addItemToOrder(
+                            selectedOrder.id,
+                            newItemToAdd.productId,
+                            newItemToAdd.quantity,
+                          );
+                          setNewItemToAdd({ productId: "", quantity: "" });
+                          setShowAddItemForm(false);
+                        }}
+                        className="button"
+                        style={{ backgroundColor: "#10b981" }}
+                      >
+                        <i className="fas fa-check"></i> Add
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAddItemForm(false);
+                          setNewItemToAdd({ productId: "", quantity: "" });
+                        }}
+                        className="button"
+                        style={{ backgroundColor: "#6b7280" }}
+                      >
+                        <i className="fas fa-times"></i> Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <table className="table">
+                  <thead>
+                    <tr className="table-header">
+                      <th>Product</th>
+                      <th>Quantity</th>
+                      <th>Price at Order</th>
+                      <th>Subtotal</th>
+                      {isEditingOrder && <th>Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedOrder.items.map((item) => (
+                      <tr key={item.id} className="table-row">
+                        <td>{item.productName}</td>
+                        <td>
+                          {isEditingOrder && editingItemId === item.id ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "5px",
+                                alignItems: "center",
+                              }}
+                            >
+                              <input
+                                type="number"
+                                value={editingItemQuantity}
+                                onChange={(e) =>
+                                  setEditingItemQuantity(e.target.value)
+                                }
+                                className="form-input"
+                                style={{ width: "80px", padding: "4px 8px" }}
+                                min="1"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => {
+                                  if (
+                                    !editingItemQuantity ||
+                                    editingItemQuantity <= 0
+                                  ) {
+                                    alert("Please enter a valid quantity");
+                                    return;
+                                  }
+                                  updateOrderItem(
+                                    selectedOrder.id,
+                                    item.id,
+                                    editingItemQuantity,
+                                  );
+                                  setEditingItemId(null);
+                                  setEditingItemQuantity("");
+                                }}
+                                className="button"
+                                style={{ padding: "4px 8px", fontSize: "11px" }}
+                              >
+                                <i className="fas fa-check"></i>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingItemId(null);
+                                  setEditingItemQuantity("");
+                                }}
+                                className="button"
+                                style={{
+                                  padding: "4px 8px",
+                                  fontSize: "11px",
+                                  backgroundColor: "#6b7280",
+                                }}
+                              >
+                                <i className="fas fa-times"></i>
+                              </button>
+                            </div>
+                          ) : (
+                            item.quantity
+                          )}
+                        </td>
+                        <td>${item.priceAtOrder.toFixed(2)}</td>
+                        <td>
+                          ${(item.quantity * item.priceAtOrder).toFixed(2)}
+                        </td>
+                        {isEditingOrder && (
+                          <td>
+                            {editingItemId !== item.id && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setEditingItemId(item.id);
+                                    setEditingItemQuantity(item.quantity);
+                                  }}
+                                  className="button"
+                                  style={{
+                                    padding: "4px 8px",
+                                    fontSize: "12px",
+                                    marginRight: "5px",
+                                  }}
+                                >
+                                  <i className="fas fa-edit"></i>
+                                </button>
+                                {selectedOrder.items.length > 1 && (
+                                  <button
+                                    onClick={() =>
+                                      removeOrderItem(selectedOrder.id, item.id)
+                                    }
+                                    className="button"
+                                    style={{
+                                      padding: "4px 8px",
+                                      fontSize: "12px",
+                                      backgroundColor: "#ef4444",
+                                    }}
+                                  >
+                                    <i className="fas fa-trash"></i>
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                    <tr
+                      className="table-row"
+                      style={{ fontWeight: "600", backgroundColor: "#f9fafb" }}
+                    >
+                      <td colSpan="3" style={{ textAlign: "right" }}>
+                        Total:
+                      </td>
+                      <td>
+                        $
+                        {selectedOrder.items
+                          .reduce(
+                            (sum, item) =>
+                              sum + item.quantity * item.priceAtOrder,
+                            0,
+                          )
+                          .toFixed(2)}
+                      </td>
+                      {isEditingOrder && <td></td>}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  onClick={() => {
+                    setSelectedOrder(null);
+                    setIsEditingOrder(false);
+                    setEditOrderItems([]);
+                    setEditingItemId(null);
+                    setEditingItemQuantity("");
+                    setShowAddItemForm(false);
+                    setNewItemToAdd({ productId: "", quantity: "" });
+                  }}
+                  className="button"
+                  style={{ backgroundColor: "#6b7280" }}
+                >
+                  <i className="fas fa-times"></i> Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -3084,6 +4248,955 @@ function App() {
     );
   };
 
+  // Settings page (Admin only)
+  const renderSettingsPage = () => {
+    // Double-check user is admin
+    if (currentUser?.role !== "admin") {
+      return (
+        <div className="section">
+          <div className="card">
+            <p className="empty-state">
+              Access Denied. Admin privileges required.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    const handleSettingChange = (key, value) => {
+      setTempSettings({
+        ...tempSettings,
+        [key]: value,
+      });
+
+      // Apply color changes immediately for live preview
+      if (key.startsWith("color_")) {
+        const root = document.documentElement;
+        const cssVarName = "--" + key.replace(/_/g, "-");
+        root.style.setProperty(cssVarName, value);
+      }
+
+      // Apply company name to page title immediately
+      if (key === "company_name") {
+        document.title = value || "OrderFlow";
+      }
+    };
+
+    const handleSaveSettings = () => {
+      updateSettings(tempSettings);
+    };
+
+    const handleLogoSelect = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        setLogoFile(file);
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setLogoPreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    const handleLogoUpload = () => {
+      if (logoFile) {
+        uploadLogo(logoFile);
+        setLogoFile(null);
+        setLogoPreview(null);
+      }
+    };
+
+    return (
+      <>
+        <h1 className="page-title">
+          <i className="fas fa-cog"></i> System Settings
+        </h1>
+
+        {isLoadingSettings ? (
+          <div className="section">
+            <div className="card">
+              <p style={{ textAlign: "center", color: "#6b7280" }}>
+                <i className="fas fa-spinner fa-spin"></i> Loading settings...
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Tabs */}
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                marginBottom: "20px",
+                borderBottom: "2px solid #e5e7eb",
+                paddingBottom: "10px",
+              }}
+            >
+              <button
+                onClick={() => setSettingsActiveTab("branding")}
+                className="button"
+                style={{
+                  backgroundColor:
+                    settingsActiveTab === "branding" ? "#3b82f6" : "#e5e7eb",
+                  color: settingsActiveTab === "branding" ? "white" : "#374151",
+                  borderRadius: "6px 6px 0 0",
+                }}
+              >
+                <i className="fas fa-palette"></i> Branding
+              </button>
+              <button
+                onClick={() => setSettingsActiveTab("colors")}
+                className="button"
+                style={{
+                  backgroundColor:
+                    settingsActiveTab === "colors" ? "#3b82f6" : "#e5e7eb",
+                  color: settingsActiveTab === "colors" ? "white" : "#374151",
+                  borderRadius: "6px 6px 0 0",
+                }}
+              >
+                <i className="fas fa-paint-brush"></i> Colors
+              </button>
+              <button
+                onClick={() => setSettingsActiveTab("system")}
+                className="button"
+                style={{
+                  backgroundColor:
+                    settingsActiveTab === "system" ? "#3b82f6" : "#e5e7eb",
+                  color: settingsActiveTab === "system" ? "white" : "#374151",
+                  borderRadius: "6px 6px 0 0",
+                }}
+              >
+                <i className="fas fa-sliders-h"></i> System
+              </button>
+            </div>
+
+            {/* Branding Tab */}
+            {settingsActiveTab === "branding" && (
+              <div className="section">
+                <div className="card">
+                  <h2 className="section-title">
+                    <i className="fas fa-palette"></i> Branding Settings
+                  </h2>
+
+                  <div className="form-group">
+                    <label
+                      style={{
+                        fontWeight: "600",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Company Name
+                    </label>
+                    <input
+                      type="text"
+                      value={tempSettings.company_name || ""}
+                      onChange={(e) =>
+                        handleSettingChange("company_name", e.target.value)
+                      }
+                      className="form-input"
+                      placeholder="e.g., Acme Corporation"
+                    />
+                    <small
+                      style={{
+                        color: "#6b7280",
+                        display: "block",
+                        marginTop: "5px",
+                      }}
+                    >
+                      This name appears throughout the application
+                    </small>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: "20px" }}>
+                    <label
+                      style={{
+                        fontWeight: "600",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Company Tagline
+                    </label>
+                    <input
+                      type="text"
+                      value={tempSettings.company_tagline || ""}
+                      onChange={(e) =>
+                        handleSettingChange("company_tagline", e.target.value)
+                      }
+                      className="form-input"
+                      placeholder="e.g., Warehouse Management System"
+                    />
+                    <small
+                      style={{
+                        color: "#6b7280",
+                        display: "block",
+                        marginTop: "5px",
+                      }}
+                    >
+                      Appears below the company name
+                    </small>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: "30px" }}>
+                    <label
+                      style={{
+                        fontWeight: "600",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      <i className="fas fa-image"></i> Company Logo
+                    </label>
+
+                    {/* Current Logo Display */}
+                    {settings.company_logo_url && !logoPreview && (
+                      <div
+                        style={{
+                          marginBottom: "15px",
+                          padding: "20px",
+                          backgroundColor: "#f9fafb",
+                          borderRadius: "8px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "20px",
+                        }}
+                      >
+                        <img
+                          src={`http://localhost:3000${settings.company_logo_url}`}
+                          alt="Company Logo"
+                          style={{
+                            maxHeight: "80px",
+                            maxWidth: "200px",
+                            objectFit: "contain",
+                          }}
+                        />
+                        <button
+                          onClick={deleteLogo}
+                          className="button"
+                          style={{
+                            backgroundColor: "#ef4444",
+                            padding: "8px 16px",
+                          }}
+                        >
+                          <i className="fas fa-trash"></i> Remove Logo
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Logo Preview */}
+                    {logoPreview && (
+                      <div
+                        style={{
+                          marginBottom: "15px",
+                          padding: "20px",
+                          backgroundColor: "#f0fdf4",
+                          borderRadius: "8px",
+                          border: "2px solid #10b981",
+                        }}
+                      >
+                        <p
+                          style={{
+                            marginTop: 0,
+                            fontWeight: "600",
+                            color: "#065f46",
+                          }}
+                        >
+                          Preview:
+                        </p>
+                        <img
+                          src={logoPreview}
+                          alt="Logo Preview"
+                          style={{
+                            maxHeight: "80px",
+                            maxWidth: "200px",
+                            objectFit: "contain",
+                            marginBottom: "10px",
+                          }}
+                        />
+                        <div style={{ display: "flex", gap: "10px" }}>
+                          <button
+                            onClick={handleLogoUpload}
+                            className="button"
+                            style={{ backgroundColor: "#10b981" }}
+                          >
+                            <i className="fas fa-upload"></i> Upload This Logo
+                          </button>
+                          <button
+                            onClick={() => {
+                              setLogoFile(null);
+                              setLogoPreview(null);
+                            }}
+                            className="button"
+                            style={{ backgroundColor: "#6b7280" }}
+                          >
+                            <i className="fas fa-times"></i> Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload Button */}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoSelect}
+                      id="logo-upload"
+                      style={{ display: "none" }}
+                    />
+                    <label
+                      htmlFor="logo-upload"
+                      className="button"
+                      style={{
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <i className="fas fa-upload"></i> Choose Logo Image
+                    </label>
+                    <small
+                      style={{
+                        color: "#6b7280",
+                        display: "block",
+                        marginTop: "5px",
+                      }}
+                    >
+                      Accepted formats: JPG, PNG, GIF, SVG (Max 5MB)
+                    </small>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "30px",
+                      paddingTop: "20px",
+                      borderTop: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <button
+                      onClick={handleSaveSettings}
+                      className="button"
+                      style={{ backgroundColor: "#10b981" }}
+                    >
+                      <i className="fas fa-save"></i> Save Branding Settings
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Colors Tab */}
+            {settingsActiveTab === "colors" && (
+              <div className="section">
+                <div className="card">
+                  <h2 className="section-title">
+                    <i className="fas fa-paint-brush"></i> Color Customization
+                  </h2>
+                  <div
+                    style={{
+                      padding: "15px",
+                      backgroundColor: "#dbeafe",
+                      borderRadius: "8px",
+                      marginBottom: "20px",
+                      border: "2px solid #3b82f6",
+                    }}
+                  >
+                    <p
+                      style={{ margin: 0, color: "#1e40af", fontWeight: "600" }}
+                    >
+                      <i className="fas fa-info-circle"></i> Preview Mode Active
+                    </p>
+                    <p
+                      style={{
+                        margin: "5px 0 0 0",
+                        color: "#1e3a8a",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Colors will update in real-time as you change them. Click
+                      "Save" to make them permanent.
+                    </p>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(250px, 1fr))",
+                      gap: "20px",
+                    }}
+                  >
+                    {/* Primary Color */}
+                    <div>
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Primary Color
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={tempSettings.color_primary || "#3b82f6"}
+                          onChange={(e) =>
+                            handleSettingChange("color_primary", e.target.value)
+                          }
+                          style={{
+                            width: "60px",
+                            height: "40px",
+                            border: "2px solid #d1d5db",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={tempSettings.color_primary || "#3b82f6"}
+                          onChange={(e) =>
+                            handleSettingChange("color_primary", e.target.value)
+                          }
+                          className="form-input"
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Buttons, links, main accents
+                      </small>
+                    </div>
+
+                    {/* Secondary Color */}
+                    <div>
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Secondary Color
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={tempSettings.color_secondary || "#1e40af"}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "color_secondary",
+                              e.target.value,
+                            )
+                          }
+                          style={{
+                            width: "60px",
+                            height: "40px",
+                            border: "2px solid #d1d5db",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={tempSettings.color_secondary || "#1e40af"}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "color_secondary",
+                              e.target.value,
+                            )
+                          }
+                          className="form-input"
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Secondary elements
+                      </small>
+                    </div>
+
+                    {/* Sidebar Background */}
+                    <div>
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Sidebar Background
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={tempSettings.color_sidebar || "#1f2937"}
+                          onChange={(e) =>
+                            handleSettingChange("color_sidebar", e.target.value)
+                          }
+                          style={{
+                            width: "60px",
+                            height: "40px",
+                            border: "2px solid #d1d5db",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={tempSettings.color_sidebar || "#1f2937"}
+                          onChange={(e) =>
+                            handleSettingChange("color_sidebar", e.target.value)
+                          }
+                          className="form-input"
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Navigation sidebar color
+                      </small>
+                    </div>
+
+                    {/* Sidebar Text */}
+                    <div>
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Sidebar Text
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={tempSettings.color_sidebar_text || "#ffffff"}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "color_sidebar_text",
+                              e.target.value,
+                            )
+                          }
+                          style={{
+                            width: "60px",
+                            height: "40px",
+                            border: "2px solid #d1d5db",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={tempSettings.color_sidebar_text || "#ffffff"}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "color_sidebar_text",
+                              e.target.value,
+                            )
+                          }
+                          className="form-input"
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Text color in sidebar
+                      </small>
+                    </div>
+
+                    {/* Success Color */}
+                    <div>
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Success Color
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={tempSettings.color_success || "#10b981"}
+                          onChange={(e) =>
+                            handleSettingChange("color_success", e.target.value)
+                          }
+                          style={{
+                            width: "60px",
+                            height: "40px",
+                            border: "2px solid #d1d5db",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={tempSettings.color_success || "#10b981"}
+                          onChange={(e) =>
+                            handleSettingChange("color_success", e.target.value)
+                          }
+                          className="form-input"
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Success states & badges
+                      </small>
+                    </div>
+
+                    {/* Warning Color */}
+                    <div>
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Warning Color
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={tempSettings.color_warning || "#f59e0b"}
+                          onChange={(e) =>
+                            handleSettingChange("color_warning", e.target.value)
+                          }
+                          style={{
+                            width: "60px",
+                            height: "40px",
+                            border: "2px solid #d1d5db",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={tempSettings.color_warning || "#f59e0b"}
+                          onChange={(e) =>
+                            handleSettingChange("color_warning", e.target.value)
+                          }
+                          className="form-input"
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Warning states & badges
+                      </small>
+                    </div>
+
+                    {/* Danger Color */}
+                    <div>
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Danger Color
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={tempSettings.color_danger || "#ef4444"}
+                          onChange={(e) =>
+                            handleSettingChange("color_danger", e.target.value)
+                          }
+                          style={{
+                            width: "60px",
+                            height: "40px",
+                            border: "2px solid #d1d5db",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={tempSettings.color_danger || "#ef4444"}
+                          onChange={(e) =>
+                            handleSettingChange("color_danger", e.target.value)
+                          }
+                          className="form-input"
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Error states & delete buttons
+                      </small>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "30px",
+                      paddingTop: "20px",
+                      borderTop: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <button
+                      onClick={handleSaveSettings}
+                      className="button"
+                      style={{ backgroundColor: "#10b981" }}
+                    >
+                      <i className="fas fa-save"></i> Save Color Settings
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* System Tab */}
+            {settingsActiveTab === "system" && (
+              <div className="section">
+                <div className="card">
+                  <h2 className="section-title">
+                    <i className="fas fa-sliders-h"></i> System Settings
+                  </h2>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Currency Symbol
+                      </label>
+                      <input
+                        type="text"
+                        value={tempSettings.currency_symbol || "$"}
+                        onChange={(e) =>
+                          handleSettingChange("currency_symbol", e.target.value)
+                        }
+                        className="form-input"
+                        placeholder="$"
+                        maxLength="3"
+                      />
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Symbol used for prices (e.g., $, €, £)
+                      </small>
+                    </div>
+
+                    <div className="form-group">
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Low Stock Threshold
+                      </label>
+                      <input
+                        type="number"
+                        value={tempSettings.low_stock_threshold || 10}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "low_stock_threshold",
+                            e.target.value,
+                          )
+                        }
+                        className="form-input"
+                        min="0"
+                      />
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Show warnings when stock falls below this number
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className="form-row" style={{ marginTop: "20px" }}>
+                    <div className="form-group">
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Items Per Page
+                      </label>
+                      <select
+                        value={tempSettings.items_per_page || 20}
+                        onChange={(e) =>
+                          handleSettingChange("items_per_page", e.target.value)
+                        }
+                        className="form-input"
+                      >
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Default number of items shown in tables
+                      </small>
+                    </div>
+
+                    <div className="form-group">
+                      <label
+                        style={{
+                          fontWeight: "600",
+                          display: "block",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Date Format
+                      </label>
+                      <select
+                        value={tempSettings.date_format || "MM/DD/YYYY"}
+                        onChange={(e) =>
+                          handleSettingChange("date_format", e.target.value)
+                        }
+                        className="form-input"
+                      >
+                        <option value="MM/DD/YYYY">MM/DD/YYYY (US)</option>
+                        <option value="DD/MM/YYYY">DD/MM/YYYY (UK/EU)</option>
+                        <option value="YYYY-MM-DD">YYYY-MM-DD (ISO)</option>
+                      </select>
+                      <small
+                        style={{
+                          color: "#6b7280",
+                          display: "block",
+                          marginTop: "5px",
+                        }}
+                      >
+                        How dates are displayed
+                      </small>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "30px",
+                      paddingTop: "20px",
+                      borderTop: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <button
+                      onClick={handleSaveSettings}
+                      className="button"
+                      style={{ backgroundColor: "#10b981" }}
+                    >
+                      <i className="fas fa-save"></i> Save System Settings
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </>
+    );
+  };
+
   // Login/Register page
   const renderAuthPage = () => (
     <div
@@ -3270,9 +5383,46 @@ function App() {
           <div className={`sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
             <div className="sidebar-header">
               {!sidebarCollapsed && (
-                <h2>
-                  <i className="fas fa-warehouse"></i> OrderFlow
-                </h2>
+                <>
+                  {settings.company_logo_url ? (
+                    <div
+                      style={{
+                        padding: "20px",
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                      }}
+                    >
+                      <img
+                        src={`http://localhost:3000${settings.company_logo_url}`}
+                        alt={settings.company_name || "Company Logo"}
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: "60px",
+                          objectFit: "contain",
+                          display: "block",
+                          margin: "0 auto",
+                        }}
+                      />
+                      {settings.company_tagline && (
+                        <p
+                          style={{
+                            margin: "10px 0 0 0",
+                            fontSize: "12px",
+                            textAlign: "center",
+                            opacity: 0.8,
+                            color: settings.color_sidebar_text || "#ffffff",
+                          }}
+                        >
+                          {settings.company_tagline}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <h2>
+                      <i className="fas fa-warehouse"></i>{" "}
+                      {settings.company_name || "OrderFlow"}
+                    </h2>
+                  )}
+                </>
               )}
               {sidebarCollapsed && (
                 <h2>
@@ -3340,6 +5490,16 @@ function App() {
                 >
                   <i className="fas fa-users-cog"></i>
                   {!sidebarCollapsed && <span> Users</span>}
+                </button>
+              )}
+              {currentUser?.role === "admin" && (
+                <button
+                  className={`nav-item ${currentPage === "settings" ? "active" : ""}`}
+                  onClick={() => setCurrentPage("settings")}
+                  title="Settings"
+                >
+                  <i className="fas fa-cog"></i>
+                  {!sidebarCollapsed && <span> Settings</span>}
                 </button>
               )}
               <button
