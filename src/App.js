@@ -1661,12 +1661,24 @@ function App() {
 
     // Orders by status chart data
     const orderStatusData = {
-      labels: ["Pending", "Processed"],
+      labels: ["Pending", "Picked", "Packed", "Shipped", "Processed"],
       datasets: [
         {
           label: "Orders",
-          data: [pendingOrders, processedOrders],
-          backgroundColor: ["#f59e0b", "#10b981"],
+          data: [
+            orders.filter((o) => o.status === "pending").length,
+            orders.filter((o) => o.status === "picked").length,
+            orders.filter((o) => o.status === "packed").length,
+            orders.filter((o) => o.status === "shipped").length,
+            orders.filter((o) => o.status === "processed").length,
+          ],
+          backgroundColor: [
+            "#f59e0b",
+            "#3b82f6",
+            "#8b5cf6",
+            "#10b981",
+            "#059669",
+          ],
           borderWidth: 0,
         },
       ],
@@ -1736,9 +1748,13 @@ function App() {
           <i className="fas fa-chart-line"></i> Dashboard Overview
         </h1>
 
-        {/* Stats Cards */}
+        {/* Stats Cards - Now Clickable! */}
         <div className="stats-grid">
-          <div className="stat-card">
+          <div
+            className="stat-card stat-card-clickable"
+            onClick={() => setCurrentPage("products")}
+            title="Click to view Products page"
+          >
             <div className="stat-icon">
               <i className="fas fa-box" style={{ color: "#3b82f6" }}></i>
             </div>
@@ -1747,7 +1763,11 @@ function App() {
               <div className="stat-label">Total Products</div>
             </div>
           </div>
-          <div className="stat-card">
+          <div
+            className="stat-card stat-card-clickable"
+            onClick={() => setCurrentPage("orders")}
+            title="Click to view Orders page"
+          >
             <div className="stat-icon">
               <i
                 className="fas fa-clipboard-list"
@@ -1759,7 +1779,14 @@ function App() {
               <div className="stat-label">Total Orders</div>
             </div>
           </div>
-          <div className="stat-card">
+          <div
+            className="stat-card stat-card-clickable"
+            onClick={() => {
+              setCurrentPage("orders");
+              setOrderFilter("pending");
+            }}
+            title="Click to view Pending Orders"
+          >
             <div className="stat-icon">
               <i className="fas fa-clock" style={{ color: "#f59e0b" }}></i>
             </div>
@@ -1768,7 +1795,11 @@ function App() {
               <div className="stat-label">Pending Orders</div>
             </div>
           </div>
-          <div className="stat-card">
+          <div
+            className="stat-card stat-card-clickable"
+            onClick={() => setCurrentPage("workers")}
+            title="Click to view Workers page"
+          >
             <div className="stat-icon">
               <i className="fas fa-users" style={{ color: "#8b5cf6" }}></i>
             </div>
@@ -1785,17 +1816,11 @@ function App() {
             <h2 className="section-title">
               <i className="fas fa-exclamation-triangle"></i> Low Stock Alerts
             </h2>
-            <div
-              className="card"
-              style={{
-                backgroundColor: "#fef3c7",
-                borderLeft: "4px solid #f59e0b",
-              }}
-            >
-              <p style={{ marginTop: 0, fontWeight: "600", color: "#92400e" }}>
+            <div className="card alert-card">
+              <p className="alert-card-title">
                 The following products need restocking:
               </p>
-              <ul style={{ color: "#92400e" }}>
+              <ul className="alert-card-list">
                 {getLowStockProducts().map((product) => (
                   <li key={product.id}>
                     <strong>{product.name}</strong> - Only {product.stock} units
@@ -1814,7 +1839,7 @@ function App() {
             <h3 className="chart-title">
               <i className="fas fa-chart-pie"></i> Orders by Status
             </h3>
-            <div style={{ height: "250px" }}>
+            <div className="chart-container">
               <Doughnut data={orderStatusData} options={chartOptions} />
             </div>
           </div>
@@ -1824,7 +1849,7 @@ function App() {
             <h3 className="chart-title">
               <i className="fas fa-chart-bar"></i> Product Stock Levels
             </h3>
-            <div style={{ height: "250px" }}>
+            <div className="chart-container">
               <Bar data={stockData} options={chartOptions} />
             </div>
           </div>
@@ -1834,7 +1859,7 @@ function App() {
             <h3 className="chart-title">
               <i className="fas fa-chart-line"></i> Orders Trend (Last 7 Days)
             </h3>
-            <div style={{ height: "250px" }}>
+            <div className="chart-container">
               <Line data={orderTrendData} options={chartOptions} />
             </div>
           </div>
@@ -1844,7 +1869,7 @@ function App() {
             <h3 className="chart-title">
               <i className="fas fa-users-cog"></i> Workers by Role
             </h3>
-            <div style={{ height: "250px" }}>
+            <div className="chart-container">
               <Doughnut data={workersRoleData} options={chartOptions} />
             </div>
           </div>
@@ -1864,7 +1889,7 @@ function App() {
                   <tr className="table-header">
                     <th>Order ID</th>
                     <th>Customer</th>
-                    <th>Product</th>
+                    <th>Items</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -1876,10 +1901,37 @@ function App() {
                       <tr key={order.id} className="table-row">
                         <td>#{order.id}</td>
                         <td>{order.customerName}</td>
-                        <td>{order.productName}</td>
+                        <td>
+                          {order.items && order.items.length > 0 ? (
+                            <div className="item-list">
+                              {order.items.slice(0, 2).map((item, idx) => (
+                                <div key={idx} className="item-list-item">
+                                  {item.productName} (×{item.quantity})
+                                </div>
+                              ))}
+                              {order.items.length > 2 && (
+                                <div className="item-list-item">
+                                  +{order.items.length - 2} more...
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: "#6b7280" }}>No items</span>
+                          )}
+                        </td>
                         <td>
                           <span
-                            className={`badge ${order.status === "pending" ? "badge-orange" : "badge-green"}`}
+                            className={`badge ${
+                              order.status === "pending"
+                                ? "badge-orange"
+                                : order.status === "picked"
+                                  ? "badge-blue"
+                                  : order.status === "packed"
+                                    ? "badge-purple"
+                                    : order.status === "shipped"
+                                      ? "badge-green"
+                                      : "badge-green"
+                            }`}
                           >
                             {order.status}
                           </span>
@@ -1898,37 +1950,22 @@ function App() {
   // Orders page
   const renderOrdersPage = () => (
     <>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "30px",
-        }}
-      >
-        <h1 className="page-title" style={{ margin: 0 }}>
+      <div className="page-header">
+        <h1 className="page-header-title">
           <i className="fas fa-clipboard-list"></i> Orders Management
         </h1>
-        <button
-          onClick={exportOrdersToCSV}
-          className="button"
-          style={{ display: "flex", alignItems: "center", gap: "8px" }}
-        >
-          <i className="fas fa-download"></i> Export to CSV
-        </button>
-        <button
-          onClick={() => setShowAddOrderForm(!showAddOrderForm)}
-          className="button"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            marginRight: "10px",
-          }}
-        >
-          <i className={`fas fa-${showAddOrderForm ? "times" : "plus"}`}></i>
-          {showAddOrderForm ? "Cancel" : "Create Order"}
-        </button>
+        <div className="page-header-actions">
+          <button onClick={exportOrdersToCSV} className="button">
+            <i className="fas fa-download"></i> Export to CSV
+          </button>
+          <button
+            onClick={() => setShowAddOrderForm(!showAddOrderForm)}
+            className="button"
+          >
+            <i className={`fas fa-${showAddOrderForm ? "times" : "plus"}`}></i>
+            {showAddOrderForm ? "Cancel" : "Create Order"}
+          </button>
+        </div>
       </div>
 
       {/* Add Order Form */}
@@ -1958,20 +1995,12 @@ function App() {
               </div>
 
               <div style={{ marginTop: "20px", marginBottom: "10px" }}>
-                <label
-                  style={{
-                    fontWeight: "600",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
+                <label className="order-item-label">
                   <span>Order Items *</span>
                   <button
                     type="button"
                     onClick={addOrderItem}
-                    className="button"
-                    style={{ padding: "6px 12px", fontSize: "12px" }}
+                    className="button button-small"
                   >
                     <i className="fas fa-plus"></i> Add Item
                   </button>
@@ -1979,29 +2008,9 @@ function App() {
               </div>
 
               {newOrder.items.map((item, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: "flex",
-                    gap: "10px",
-                    marginBottom: "10px",
-                    padding: "10px",
-                    backgroundColor: "#f9fafb",
-                    borderRadius: "6px",
-                    alignItems: "flex-end",
-                  }}
-                >
+                <div key={index} className="order-item-row">
                   <div style={{ flex: 2 }}>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "5px",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                      }}
-                    >
-                      Product
-                    </label>
+                    <label className="order-item-label">Product</label>
                     <select
                       value={item.productId}
                       onChange={(e) =>
@@ -2019,16 +2028,7 @@ function App() {
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "5px",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                      }}
-                    >
-                      Quantity
-                    </label>
+                    <label className="order-item-label">Quantity</label>
                     <input
                       type="number"
                       value={item.quantity}
@@ -2044,12 +2044,7 @@ function App() {
                     <button
                       type="button"
                       onClick={() => removeOrderItem(index)}
-                      className="button"
-                      style={{
-                        padding: "8px 12px",
-                        backgroundColor: "#ef4444",
-                        flexShrink: 0,
-                      }}
+                      className="button button-danger"
                     >
                       <i className="fas fa-trash"></i>
                     </button>
@@ -2057,7 +2052,7 @@ function App() {
                 </div>
               ))}
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+              <div className="button-group" style={{ marginTop: "20px" }}>
                 <button type="submit" className="button">
                   <i className="fas fa-save"></i> Create Order
                 </button>
@@ -2070,8 +2065,7 @@ function App() {
                       items: [{ productId: "", quantity: "" }],
                     });
                   }}
-                  className="button"
-                  style={{ backgroundColor: "#6b7280" }}
+                  className="button button-secondary"
                 >
                   Cancel
                 </button>
@@ -2087,39 +2081,27 @@ function App() {
           <i className="fas fa-upload"></i> Import Orders from CSV
         </h2>
         <div className="card">
-          <p style={{ marginBottom: "15px", color: "#6b7280" }}>
+          <p className="form-help-text" style={{ marginBottom: "15px" }}>
             Upload a CSV file with columns:{" "}
             <strong>productId, quantity, customerName</strong>
           </p>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <div className="button-group">
             <input
               type="file"
               accept=".csv"
               onChange={handleOrderFileUpload}
               id="order-csv-upload"
-              style={{ display: "none" }}
+              className="file-upload-hidden"
             />
             <label
               htmlFor="order-csv-upload"
-              className="button"
-              style={{
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
+              className="button file-upload-label"
             >
               <i className="fas fa-file-csv"></i> Choose CSV File
             </label>
             <button
               onClick={downloadOrderTemplate}
-              className="button"
-              style={{
-                backgroundColor: "#10b981",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
+              className="button button-success"
             >
               <i className="fas fa-download"></i> Download Template
             </button>
@@ -2129,91 +2111,46 @@ function App() {
 
       <div className="section">
         <div className="card">
-          <p
-            style={{
-              marginTop: 0,
-              marginBottom: "15px",
-              color: "#6b7280",
-              fontSize: "14px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
+          <p className="info-box">
             <i className="fas fa-info-circle"></i>
             Click on any order to view full details and manage items
           </p>
+
           {/* Filter buttons */}
-          <div
-            style={{
-              marginBottom: "20px",
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
+          <div className="filter-buttons">
             <button
               onClick={() => setOrderFilter("all")}
-              className="button"
-              style={{
-                backgroundColor: orderFilter === "all" ? "#3b82f6" : "#e5e7eb",
-                color: orderFilter === "all" ? "white" : "#374151",
-              }}
+              className={`button ${orderFilter === "all" ? "" : "button-secondary"}`}
             >
               All Orders ({orders.length})
             </button>
             <button
               onClick={() => setOrderFilter("pending")}
-              className="button"
-              style={{
-                backgroundColor:
-                  orderFilter === "pending" ? "#f59e0b" : "#e5e7eb",
-                color: orderFilter === "pending" ? "white" : "#374151",
-              }}
+              className={`button ${orderFilter === "pending" ? "" : "button-secondary"}`}
             >
               Pending ({orders.filter((o) => o.status === "pending").length})
             </button>
             <button
               onClick={() => setOrderFilter("picked")}
-              className="button"
-              style={{
-                backgroundColor:
-                  orderFilter === "picked" ? "#3b82f6" : "#e5e7eb",
-                color: orderFilter === "picked" ? "white" : "#374151",
-              }}
+              className={`button ${orderFilter === "picked" ? "" : "button-secondary"}`}
             >
               Picked ({orders.filter((o) => o.status === "picked").length})
             </button>
             <button
               onClick={() => setOrderFilter("packed")}
-              className="button"
-              style={{
-                backgroundColor:
-                  orderFilter === "packed" ? "#8b5cf6" : "#e5e7eb",
-                color: orderFilter === "packed" ? "white" : "#374151",
-              }}
+              className={`button ${orderFilter === "packed" ? "" : "button-secondary"}`}
             >
               Packed ({orders.filter((o) => o.status === "packed").length})
             </button>
             <button
               onClick={() => setOrderFilter("shipped")}
-              className="button"
-              style={{
-                backgroundColor:
-                  orderFilter === "shipped" ? "#10b981" : "#e5e7eb",
-                color: orderFilter === "shipped" ? "white" : "#374151",
-              }}
+              className={`button ${orderFilter === "shipped" ? "" : "button-secondary"}`}
             >
               Shipped ({orders.filter((o) => o.status === "shipped").length})
             </button>
             <button
               onClick={() => setOrderFilter("processed")}
-              className="button"
-              style={{
-                backgroundColor:
-                  orderFilter === "processed" ? "#10b981" : "#e5e7eb",
-                color: orderFilter === "processed" ? "white" : "#374151",
-              }}
+              className={`button ${orderFilter === "processed" ? "" : "button-secondary"}`}
             >
               Processed ({orders.filter((o) => o.status === "processed").length}
               )
@@ -2221,19 +2158,13 @@ function App() {
           </div>
 
           {/* Search bar */}
-          <div style={{ marginBottom: "20px" }}>
+          <div className="search-bar">
             <input
               type="text"
               placeholder="Search orders by customer or product name..."
               value={orderSearch}
               onChange={(e) => setOrderSearch(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 15px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
+              className="search-input"
             />
           </div>
 
@@ -2257,17 +2188,16 @@ function App() {
                 {getSearchedAndFilteredOrders().map((order) => (
                   <tr
                     key={order.id}
-                    className="table-row"
+                    className="table-row table-row-clickable"
                     onClick={() => fetchOrderDetails(order.id)}
-                    style={{ cursor: "pointer" }}
                   >
                     <td>#{order.id}</td>
                     <td>{order.customerName}</td>
                     <td>
                       {order.items.length > 0 ? (
-                        <div style={{ fontSize: "12px" }}>
-                          {order.items.map((item, idx) => (
-                            <div key={item.id} style={{ marginBottom: "2px" }}>
+                        <div className="item-list">
+                          {order.items.map((item) => (
+                            <div key={item.id} className="item-list-item">
                               {item.productName} (×{item.quantity})
                             </div>
                           ))}
@@ -2305,8 +2235,7 @@ function App() {
                       {order.status === "pending" && (
                         <button
                           onClick={() => updateOrderStatus(order.id, "picked")}
-                          className="button"
-                          style={{ fontSize: "12px", padding: "6px 12px" }}
+                          className="button button-small"
                         >
                           Mark Picked
                         </button>
@@ -2314,8 +2243,7 @@ function App() {
                       {order.status === "picked" && (
                         <button
                           onClick={() => updateOrderStatus(order.id, "packed")}
-                          className="button"
-                          style={{ fontSize: "12px", padding: "6px 12px" }}
+                          className="button button-small"
                         >
                           Mark Packed
                         </button>
@@ -2323,8 +2251,7 @@ function App() {
                       {order.status === "packed" && (
                         <button
                           onClick={() => updateOrderStatus(order.id, "shipped")}
-                          className="button"
-                          style={{ fontSize: "12px", padding: "6px 12px" }}
+                          className="button button-small"
                         >
                           Mark Shipped
                         </button>
@@ -2337,6 +2264,7 @@ function App() {
           )}
         </div>
       </div>
+
       {/* Order Details Modal */}
       {selectedOrder && (
         <div
@@ -2352,8 +2280,7 @@ function App() {
           }}
         >
           <div
-            className="modal-content"
-            style={{ maxWidth: "1000px" }}
+            className="modal-content modal-content-large"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
@@ -2381,14 +2308,7 @@ function App() {
               {/* Order Status & Progress */}
               <div className="detail-section">
                 <h3>Order Status</h3>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "15px",
-                    marginBottom: "20px",
-                  }}
-                >
+                <div className="status-timeline">
                   <span
                     className={`badge ${
                       selectedOrder.status === "pending"
@@ -2453,14 +2373,7 @@ function App() {
                 </div>
 
                 {/* Timeline */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "20px",
-                    fontSize: "13px",
-                    color: "#6b7280",
-                  }}
-                >
+                <div className="status-dates">
                   <div>
                     <strong>Created:</strong>{" "}
                     {new Date(selectedOrder.createdAt).toLocaleString()}
@@ -2509,10 +2422,7 @@ function App() {
                     <span>{selectedOrder.customerPhone || "Not provided"}</span>
                   </div>
                   {selectedOrder.customerAddress && (
-                    <div
-                      className="detail-item"
-                      style={{ gridColumn: "1 / -1" }}
-                    >
+                    <div className="detail-item detail-grid-full">
                       <label>Address:</label>
                       <span>{selectedOrder.customerAddress}</span>
                     </div>
@@ -2523,22 +2433,10 @@ function App() {
               {/* Worker Assignments */}
               <div className="detail-section">
                 <h3>Worker Assignments</h3>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "20px",
-                  }}
-                >
+                <div className="form-row-2">
                   {/* Picker Assignment */}
                   <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "8px",
-                        fontWeight: "600",
-                      }}
-                    >
+                    <label className="form-group label">
                       <i className="fas fa-hand-pointer"></i> Assigned Picker
                     </label>
                     {selectedOrder.status === "pending" ? (
@@ -2569,13 +2467,7 @@ function App() {
                           ))}
                       </select>
                     ) : (
-                      <div
-                        style={{
-                          padding: "10px",
-                          backgroundColor: "#f3f4f6",
-                          borderRadius: "6px",
-                        }}
-                      >
+                      <div className="detail-item-box">
                         {selectedOrder.pickerName || "No picker assigned"}
                       </div>
                     )}
@@ -2583,13 +2475,7 @@ function App() {
 
                   {/* Packer Assignment */}
                   <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "8px",
-                        fontWeight: "600",
-                      }}
-                    >
+                    <label className="form-group label">
                       <i className="fas fa-box"></i> Assigned Packer
                     </label>
                     {selectedOrder.status === "pending" ||
@@ -2621,13 +2507,7 @@ function App() {
                           ))}
                       </select>
                     ) : (
-                      <div
-                        style={{
-                          padding: "10px",
-                          backgroundColor: "#f3f4f6",
-                          borderRadius: "6px",
-                        }}
-                      >
+                      <div className="detail-item-box">
                         {selectedOrder.packerName || "No packer assigned"}
                       </div>
                     )}
@@ -2636,27 +2516,14 @@ function App() {
               </div>
 
               {/* Order Items */}
-              {/* Order Items */}
               <div className="detail-section">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "15px",
-                  }}
-                >
-                  <h3 style={{ margin: 0 }}>Order Items</h3>
-                  <div style={{ display: "flex", gap: "10px" }}>
+                <div className="detail-section-header">
+                  <h3 className="detail-section-title">Order Items</h3>
+                  <div className="button-group">
                     {selectedOrder.status === "pending" && !showAddItemForm && (
                       <button
                         onClick={() => setShowAddItemForm(true)}
-                        className="button"
-                        style={{
-                          fontSize: "14px",
-                          padding: "6px 12px",
-                          backgroundColor: "#10b981",
-                        }}
+                        className="button button-small button-success"
                       >
                         <i className="fas fa-plus"></i> Add Item
                       </button>
@@ -2664,8 +2531,7 @@ function App() {
                     {selectedOrder.status === "pending" && !isEditingOrder && (
                       <button
                         onClick={() => setIsEditingOrder(true)}
-                        className="button"
-                        style={{ fontSize: "14px", padding: "6px 12px" }}
+                        className="button button-small"
                       >
                         <i className="fas fa-edit"></i> Edit Items
                       </button>
@@ -2677,12 +2543,7 @@ function App() {
                           setEditingItemId(null);
                           setEditingItemQuantity("");
                         }}
-                        className="button"
-                        style={{
-                          fontSize: "14px",
-                          padding: "6px 12px",
-                          backgroundColor: "#6b7280",
-                        }}
+                        className="button button-small button-secondary"
                       >
                         <i className="fas fa-times"></i> Done Editing
                       </button>
@@ -2692,37 +2553,14 @@ function App() {
 
                 {/* Add Item Form */}
                 {showAddItemForm && (
-                  <div
-                    style={{
-                      marginBottom: "20px",
-                      padding: "15px",
-                      backgroundColor: "#f0fdf4",
-                      borderRadius: "8px",
-                      border: "2px solid #10b981",
-                    }}
-                  >
-                    <h4 style={{ marginTop: 0, color: "#065f46" }}>
+                  <div className="add-item-form">
+                    <h4 className="add-item-form-title">
                       <i className="fas fa-plus-circle"></i> Add New Item to
                       Order
                     </h4>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "10px",
-                        alignItems: "flex-end",
-                      }}
-                    >
+                    <div className="add-item-form-row">
                       <div style={{ flex: 2 }}>
-                        <label
-                          style={{
-                            display: "block",
-                            marginBottom: "5px",
-                            fontWeight: "600",
-                            fontSize: "13px",
-                          }}
-                        >
-                          Product
-                        </label>
+                        <label className="order-item-label">Product</label>
                         <select
                           value={newItemToAdd.productId}
                           onChange={(e) =>
@@ -2749,16 +2587,7 @@ function App() {
                         </select>
                       </div>
                       <div style={{ flex: 1 }}>
-                        <label
-                          style={{
-                            display: "block",
-                            marginBottom: "5px",
-                            fontWeight: "600",
-                            fontSize: "13px",
-                          }}
-                        >
-                          Quantity
-                        </label>
+                        <label className="order-item-label">Quantity</label>
                         <input
                           type="number"
                           value={newItemToAdd.quantity}
@@ -2790,8 +2619,7 @@ function App() {
                           setNewItemToAdd({ productId: "", quantity: "" });
                           setShowAddItemForm(false);
                         }}
-                        className="button"
-                        style={{ backgroundColor: "#10b981" }}
+                        className="button button-success"
                       >
                         <i className="fas fa-check"></i> Add
                       </button>
@@ -2800,8 +2628,7 @@ function App() {
                           setShowAddItemForm(false);
                           setNewItemToAdd({ productId: "", quantity: "" });
                         }}
-                        className="button"
-                        style={{ backgroundColor: "#6b7280" }}
+                        className="button button-secondary"
                       >
                         <i className="fas fa-times"></i> Cancel
                       </button>
@@ -2825,21 +2652,14 @@ function App() {
                         <td>{item.productName}</td>
                         <td>
                           {isEditingOrder && editingItemId === item.id ? (
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: "5px",
-                                alignItems: "center",
-                              }}
-                            >
+                            <div className="inline-edit-group">
                               <input
                                 type="number"
                                 value={editingItemQuantity}
                                 onChange={(e) =>
                                   setEditingItemQuantity(e.target.value)
                                 }
-                                className="form-input"
-                                style={{ width: "80px", padding: "4px 8px" }}
+                                className="form-input form-input-small"
                                 min="1"
                                 autoFocus
                               />
@@ -2860,8 +2680,7 @@ function App() {
                                   setEditingItemId(null);
                                   setEditingItemQuantity("");
                                 }}
-                                className="button"
-                                style={{ padding: "4px 8px", fontSize: "11px" }}
+                                className="button button-small"
                               >
                                 <i className="fas fa-check"></i>
                               </button>
@@ -2870,12 +2689,7 @@ function App() {
                                   setEditingItemId(null);
                                   setEditingItemQuantity("");
                                 }}
-                                className="button"
-                                style={{
-                                  padding: "4px 8px",
-                                  fontSize: "11px",
-                                  backgroundColor: "#6b7280",
-                                }}
+                                className="button button-small button-secondary"
                               >
                                 <i className="fas fa-times"></i>
                               </button>
@@ -2891,18 +2705,13 @@ function App() {
                         {isEditingOrder && (
                           <td>
                             {editingItemId !== item.id && (
-                              <>
+                              <div className="button-group-inline">
                                 <button
                                   onClick={() => {
                                     setEditingItemId(item.id);
                                     setEditingItemQuantity(item.quantity);
                                   }}
-                                  className="button"
-                                  style={{
-                                    padding: "4px 8px",
-                                    fontSize: "12px",
-                                    marginRight: "5px",
-                                  }}
+                                  className="button button-small"
                                 >
                                   <i className="fas fa-edit"></i>
                                 </button>
@@ -2911,17 +2720,12 @@ function App() {
                                     onClick={() =>
                                       removeOrderItem(selectedOrder.id, item.id)
                                     }
-                                    className="button"
-                                    style={{
-                                      padding: "4px 8px",
-                                      fontSize: "12px",
-                                      backgroundColor: "#ef4444",
-                                    }}
+                                    className="button button-small button-danger"
                                   >
                                     <i className="fas fa-trash"></i>
                                   </button>
                                 )}
-                              </>
+                              </div>
                             )}
                           </td>
                         )}
@@ -2961,8 +2765,7 @@ function App() {
                     setShowAddItemForm(false);
                     setNewItemToAdd({ productId: "", quantity: "" });
                   }}
-                  className="button"
-                  style={{ backgroundColor: "#6b7280" }}
+                  className="button button-secondary"
                 >
                   <i className="fas fa-times"></i> Close
                 </button>
@@ -2977,22 +2780,11 @@ function App() {
   // Products page
   const renderProductsPage = () => (
     <>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "30px",
-        }}
-      >
-        <h1 className="page-title" style={{ margin: 0 }}>
+      <div className="page-header">
+        <h1 className="page-header-title">
           <i className="fas fa-box"></i> Products Management
         </h1>
-        <button
-          onClick={exportProductsToCSV}
-          className="button"
-          style={{ display: "flex", alignItems: "center", gap: "8px" }}
-        >
+        <button onClick={exportProductsToCSV} className="button">
           <i className="fas fa-download"></i> Export to CSV
         </button>
       </div>
@@ -3001,57 +2793,26 @@ function App() {
       <div className="section">
         <h2 className="section-title">Add New Product</h2>
         <div className="card">
-          <form
-            onSubmit={addProduct}
-            style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}
-          >
+          <form onSubmit={addProduct} className="form-inline">
             <div style={{ flex: 1 }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "5px",
-                  fontWeight: "600",
-                }}
-              >
-                Product Name
-              </label>
+              <label>Product Name</label>
               <input
                 type="text"
                 value={newProductName}
                 onChange={(e) => setNewProductName(e.target.value)}
                 placeholder="e.g., Widget C"
-                style={{
-                  width: "100%",
-                  padding: "8px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                }}
+                className="form-input"
               />
             </div>
             <div style={{ flex: 1 }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "5px",
-                  fontWeight: "600",
-                }}
-              >
-                Initial Stock
-              </label>
+              <label>Initial Stock</label>
               <input
                 type="number"
                 value={newProductStock}
                 onChange={(e) => setNewProductStock(e.target.value)}
                 placeholder="e.g., 100"
                 min="0"
-                style={{
-                  width: "100%",
-                  padding: "8px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                }}
+                className="form-input"
               />
             </div>
             <button type="submit" className="button">
@@ -3067,42 +2828,30 @@ function App() {
           <i className="fas fa-upload"></i> Import Products from CSV
         </h2>
         <div className="card">
-          <p style={{ marginBottom: "15px", color: "#6b7280" }}>
+          <p className="form-help-text" style={{ marginBottom: "15px" }}>
             Upload a CSV file with columns:{" "}
             <strong>
               name, stock, eanCode, description, category, supplier, price,
               minStock
             </strong>
           </p>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <div className="button-group">
             <input
               type="file"
               accept=".csv"
               onChange={handleProductFileUpload}
               id="product-csv-upload"
-              style={{ display: "none" }}
+              className="file-upload-hidden"
             />
             <label
               htmlFor="product-csv-upload"
-              className="button"
-              style={{
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
+              className="button file-upload-label"
             >
               <i className="fas fa-file-csv"></i> Choose CSV File
             </label>
             <button
               onClick={downloadProductTemplate}
-              className="button"
-              style={{
-                backgroundColor: "#10b981",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
+              className="button button-success"
             >
               <i className="fas fa-download"></i> Download Template
             </button>
@@ -3115,19 +2864,13 @@ function App() {
         <h2 className="section-title">Current Inventory</h2>
         <div className="card">
           {/* Search bar */}
-          <div style={{ marginBottom: "20px" }}>
+          <div className="search-bar">
             <input
               type="text"
               placeholder="Search products by name..."
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 15px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
+              className="search-input"
             />
           </div>
 
@@ -3150,27 +2893,23 @@ function App() {
                   <tr key={product.id} className="table-row">
                     <td
                       onClick={() => viewProductDetails(product)}
-                      style={{ cursor: "pointer" }}
+                      className="table-row-clickable"
                     >
                       {product.id}
                     </td>
                     <td
                       onClick={() => viewProductDetails(product)}
-                      style={{ cursor: "pointer" }}
+                      className="table-row-clickable"
                     >
                       {product.name}
                     </td>
                     <td
                       onClick={() => viewProductDetails(product)}
-                      style={{ cursor: "pointer" }}
+                      className="table-row-clickable"
                     >
                       {editingProductId === product.id ? (
                         <div
-                          style={{
-                            display: "flex",
-                            gap: "10px",
-                            alignItems: "center",
-                          }}
+                          className="inline-edit-group"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <input
@@ -3178,18 +2917,12 @@ function App() {
                             value={editingStock}
                             onChange={(e) => setEditingStock(e.target.value)}
                             min="0"
-                            style={{
-                              width: "100px",
-                              padding: "6px",
-                              border: "1px solid #d1d5db",
-                              borderRadius: "6px",
-                            }}
+                            className="form-input form-input-small"
                             autoFocus
                           />
                           <button
                             onClick={() => updateProductStock(product.id)}
-                            className="button"
-                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                            className="button button-small"
                           >
                             <i className="fas fa-check"></i> Save
                           </button>
@@ -3198,12 +2931,7 @@ function App() {
                               setEditingProductId(null);
                               setEditingStock("");
                             }}
-                            className="button"
-                            style={{
-                              padding: "6px 12px",
-                              fontSize: "12px",
-                              backgroundColor: "#6b7280",
-                            }}
+                            className="button button-small button-secondary"
                           >
                             <i className="fas fa-times"></i> Cancel
                           </button>
@@ -3224,8 +2952,7 @@ function App() {
                             setEditingProductId(product.id);
                             setEditingStock(product.stock);
                           }}
-                          className="button"
-                          style={{ padding: "6px 12px", fontSize: "12px" }}
+                          className="button button-small"
                         >
                           <i className="fas fa-edit"></i> Quick Edit
                         </button>
@@ -3241,389 +2968,16 @@ function App() {
     </>
   );
 
-  // Workers page
-  const renderWorkersPage = () => (
-    <>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "30px",
-        }}
-      >
-        <h1 className="page-title" style={{ margin: 0 }}>
-          <i className="fas fa-users"></i> Workers Management
-        </h1>
-        <button
-          onClick={() => setShowAddWorkerForm(!showAddWorkerForm)}
-          className="button"
-          style={{ display: "flex", alignItems: "center", gap: "8px" }}
-        >
-          <i className={`fas fa-${showAddWorkerForm ? "times" : "plus"}`}></i>
-          {showAddWorkerForm ? "Cancel" : "Add Worker"}
-        </button>
-      </div>
-
-      {/* Add Worker Form */}
-      {showAddWorkerForm && (
-        <div className="section">
-          <div className="card">
-            <h3 style={{ marginTop: 0 }}>Add New Worker</h3>
-            <form onSubmit={addWorker}>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Name *</label>
-                  <input
-                    type="text"
-                    value={newWorker.name}
-                    onChange={(e) =>
-                      setNewWorker({ ...newWorker, name: e.target.value })
-                    }
-                    className="form-input"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Email *</label>
-                  <input
-                    type="email"
-                    value={newWorker.email}
-                    onChange={(e) =>
-                      setNewWorker({ ...newWorker, email: e.target.value })
-                    }
-                    className="form-input"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Role</label>
-                  <select
-                    value={newWorker.role}
-                    onChange={(e) =>
-                      setNewWorker({ ...newWorker, role: e.target.value })
-                    }
-                    className="form-input"
-                  >
-                    <option value="Picker">Picker</option>
-                    <option value="Packer">Packer</option>
-                    <option value="Supervisor">Supervisor</option>
-                    <option value="Manager">Manager</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Phone</label>
-                  <input
-                    type="tel"
-                    value={newWorker.phone}
-                    onChange={(e) =>
-                      setNewWorker({ ...newWorker, phone: e.target.value })
-                    }
-                    className="form-input"
-                    placeholder="555-0100"
-                  />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Link to User Account (Optional)</label>
-                <select
-                  value={newWorker.userId || ""}
-                  onChange={(e) =>
-                    setNewWorker({
-                      ...newWorker,
-                      userId: e.target.value || null,
-                    })
-                  }
-                  className="form-input"
-                >
-                  <option value="">No user account</option>
-                  {users
-                    .filter(
-                      (user) => !workers.some((w) => w.userId === user.id),
-                    ) // Only show unlinked users
-                    .map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.username} ({user.email})
-                      </option>
-                    ))}
-                </select>
-                <small
-                  style={{
-                    color: "#6b7280",
-                    display: "block",
-                    marginTop: "5px",
-                  }}
-                >
-                  Link this worker to a user account to give them system access
-                </small>
-              </div>
-              <button type="submit" className="button">
-                <i className="fas fa-save"></i> Add Worker
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Workers List */}
-      <div className="section">
-        <div className="card">
-          {workers.length === 0 ? (
-            <p className="empty-state">
-              No workers yet. Add your first worker above!
-            </p>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr className="table-header">
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Phone</th>
-                  <th>User Account</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {workers.map((worker) => (
-                  <tr key={worker.id} className="table-row">
-                    {editingWorker?.id === worker.id ? (
-                      // Edit mode
-                      <>
-                        <td>{worker.id}</td>
-                        <td>
-                          <input
-                            type="text"
-                            value={editingWorker.name}
-                            onChange={(e) =>
-                              setEditingWorker({
-                                ...editingWorker,
-                                name: e.target.value,
-                              })
-                            }
-                            className="form-input"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="email"
-                            value={editingWorker.email}
-                            onChange={(e) =>
-                              setEditingWorker({
-                                ...editingWorker,
-                                email: e.target.value,
-                              })
-                            }
-                            className="form-input"
-                          />
-                        </td>
-                        <td>
-                          <select
-                            value={editingWorker.role}
-                            onChange={(e) =>
-                              setEditingWorker({
-                                ...editingWorker,
-                                role: e.target.value,
-                              })
-                            }
-                            className="form-input"
-                          >
-                            <option value="Picker">Picker</option>
-                            <option value="Packer">Packer</option>
-                            <option value="Supervisor">Supervisor</option>
-                            <option value="Manager">Manager</option>
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            type="tel"
-                            value={editingWorker.phone}
-                            onChange={(e) =>
-                              setEditingWorker({
-                                ...editingWorker,
-                                phone: e.target.value,
-                              })
-                            }
-                            className="form-input"
-                          />
-                        </td>
-                        <td>
-                          <select
-                            value={editingWorker.userId || ""}
-                            onChange={(e) => {
-                              const newUserId = e.target.value || null;
-                              console.log("Changing userId to:", newUserId);
-                              setEditingWorker({
-                                ...editingWorker,
-                                userId: newUserId,
-                              });
-                            }}
-                            className="form-input"
-                          >
-                            <option value="">No user account</option>
-                            {users
-                              .filter(
-                                (user) =>
-                                  user.id === editingWorker.userId || // Current linked user
-                                  !workers.some((w) => w.userId === user.id), // Or unlinked users
-                              )
-                              .map((user) => (
-                                <option key={user.id} value={user.id}>
-                                  {user.username}
-                                </option>
-                              ))}
-                          </select>
-                        </td>
-                        <td>
-                          <span
-                            className={`badge ${worker.active ? "badge-green" : "badge-orange"}`}
-                          >
-                            {worker.active ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", gap: "5px" }}>
-                            <button
-                              onClick={() => {
-                                console.log(
-                                  "Saving worker with:",
-                                  editingWorker,
-                                ); // Debug log
-                                updateWorker(worker.id, {
-                                  name: editingWorker.name,
-                                  email: editingWorker.email,
-                                  role: editingWorker.role,
-                                  phone: editingWorker.phone,
-                                  userId: editingWorker.userId || null,
-                                });
-                              }}
-                              className="button"
-                              style={{ padding: "6px 12px", fontSize: "12px" }}
-                            >
-                              <i className="fas fa-check"></i>
-                            </button>
-                            <button
-                              onClick={() => setEditingWorker(null)}
-                              className="button"
-                              style={{
-                                padding: "6px 12px",
-                                fontSize: "12px",
-                                backgroundColor: "#6b7280",
-                              }}
-                            >
-                              <i className="fas fa-times"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </>
-                    ) : (
-                      // View mode
-                      <>
-                        <td>{worker.id}</td>
-                        <td>{worker.name}</td>
-                        <td>{worker.email}</td>
-                        <td>{worker.role}</td>
-                        <td>{worker.phone || "-"}</td>
-                        <td>
-                          {worker.userId ? (
-                            <span className="badge badge-green">
-                              <i className="fas fa-user-check"></i>
-                              {worker.username}
-                            </span>
-                          ) : (
-                            <span
-                              className="badge"
-                              style={{ backgroundColor: "#6b7280" }}
-                            >
-                              <i className="fas fa-user-slash"></i> No account
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          <span
-                            className={`badge ${worker.active ? "badge-green" : "badge-orange"}`}
-                          >
-                            {worker.active ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", gap: "5px" }}>
-                            <button
-                              onClick={() =>
-                                setEditingWorker({
-                                  ...worker,
-                                  userId: worker.userId, // Explicitly ensure userId is set correctly
-                                })
-                              }
-                              className="button"
-                              style={{ padding: "6px 12px", fontSize: "12px" }}
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button
-                              onClick={() =>
-                                toggleWorkerStatus(worker.id, worker.active)
-                              }
-                              className="button"
-                              style={{
-                                padding: "6px 12px",
-                                fontSize: "12px",
-                                backgroundColor: worker.active
-                                  ? "#f59e0b"
-                                  : "#10b981",
-                              }}
-                            >
-                              <i
-                                className={`fas fa-${worker.active ? "ban" : "check"}`}
-                              ></i>
-                            </button>
-                            <button
-                              onClick={() => deleteWorker(worker.id)}
-                              className="button"
-                              style={{
-                                padding: "6px 12px",
-                                fontSize: "12px",
-                                backgroundColor: "#ef4444",
-                              }}
-                            >
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </>
-  );
-
   // Customers page
   const renderCustomersPage = () => (
     <>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "30px",
-        }}
-      >
-        <h1 className="page-title" style={{ margin: 0 }}>
+      <div className="page-header">
+        <h1 className="page-header-title">
           <i className="fas fa-address-book"></i> Customers Management
         </h1>
         <button
           onClick={() => setShowAddCustomerForm(!showAddCustomerForm)}
           className="button"
-          style={{ display: "flex", alignItems: "center", gap: "8px" }}
         >
           <i className={`fas fa-${showAddCustomerForm ? "times" : "plus"}`}></i>
           {showAddCustomerForm ? "Cancel" : "Add Customer"}
@@ -3711,17 +3065,7 @@ function App() {
       {/* Customers List */}
       <div className="section">
         <div className="card">
-          <p
-            style={{
-              marginTop: 0,
-              marginBottom: "15px",
-              color: "#6b7280",
-              fontSize: "14px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
+          <p className="info-box">
             <i className="fas fa-info-circle"></i>
             Click on any customer to view their order history and details
           </p>
@@ -3761,7 +3105,6 @@ function App() {
                     {editingCustomer?.id === customer.id ? (
                       // Edit mode (prevent click-through)
                       <td onClick={(e) => e.stopPropagation()} colSpan="6">
-                        {/* Your existing edit form - wrap it in a single td */}
                         <table style={{ width: "100%" }}>
                           <tbody>
                             <tr>
@@ -3823,7 +3166,7 @@ function App() {
                                 />
                               </td>
                               <td>
-                                <div style={{ display: "flex", gap: "5px" }}>
+                                <div className="button-group-inline">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -3832,11 +3175,7 @@ function App() {
                                         editingCustomer,
                                       );
                                     }}
-                                    className="button"
-                                    style={{
-                                      padding: "6px 12px",
-                                      fontSize: "12px",
-                                    }}
+                                    className="button button-small"
                                   >
                                     <i className="fas fa-check"></i>
                                   </button>
@@ -3845,12 +3184,7 @@ function App() {
                                       e.stopPropagation();
                                       setEditingCustomer(null);
                                     }}
-                                    className="button"
-                                    style={{
-                                      padding: "6px 12px",
-                                      fontSize: "12px",
-                                      backgroundColor: "#6b7280",
-                                    }}
+                                    className="button button-small button-secondary"
                                   >
                                     <i className="fas fa-times"></i>
                                   </button>
@@ -3871,8 +3205,7 @@ function App() {
                         <td onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => setEditingCustomer(customer)}
-                            className="button"
-                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                            className="button button-small"
                           >
                             <i className="fas fa-edit"></i> Edit
                           </button>
@@ -3886,6 +3219,7 @@ function App() {
           )}
         </div>
       </div>
+
       {/* Customer Details Modal */}
       {selectedCustomer && (
         <div
@@ -3896,8 +3230,7 @@ function App() {
           }}
         >
           <div
-            className="modal-content"
-            style={{ maxWidth: "900px" }}
+            className="modal-content modal-content-large"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
@@ -4027,15 +3360,8 @@ function App() {
 
               {/* Order History Section */}
               <div className="detail-section">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "15px",
-                  }}
-                >
-                  <h3 style={{ margin: 0 }}>Order History</h3>
+                <div className="detail-section-header">
+                  <h3 className="detail-section-title">Order History</h3>
                   <button
                     onClick={() => {
                       setNewOrder({
@@ -4047,8 +3373,7 @@ function App() {
                       setCurrentPage("orders");
                       setShowAddOrderForm(true);
                     }}
-                    className="button"
-                    style={{ fontSize: "14px", padding: "8px 16px" }}
+                    className="button button-small"
                   >
                     <i className="fas fa-plus"></i> Create Order for{" "}
                     {selectedCustomer.name}
@@ -4076,12 +3401,9 @@ function App() {
                           <tr key={order.id} className="table-row">
                             <td>#{order.id}</td>
                             <td>
-                              <div style={{ fontSize: "12px" }}>
+                              <div className="item-list">
                                 {order.items.map((item) => (
-                                  <div
-                                    key={item.id}
-                                    style={{ marginBottom: "2px" }}
-                                  >
+                                  <div key={item.id} className="item-list-item">
                                     {item.productName} (×{item.quantity})
                                   </div>
                                 ))}
@@ -4129,8 +3451,7 @@ function App() {
                     setSelectedCustomer(null);
                     setCustomerOrders([]);
                   }}
-                  className="button"
-                  style={{ backgroundColor: "#6b7280" }}
+                  className="button button-secondary"
                 >
                   <i className="fas fa-times"></i> Close
                 </button>
@@ -4139,6 +3460,342 @@ function App() {
           </div>
         </div>
       )}
+    </>
+  );
+
+  // Workers page
+  const renderWorkersPage = () => (
+    <>
+      <div className="page-header">
+        <h1 className="page-header-title">
+          <i className="fas fa-users"></i> Workers Management
+        </h1>
+        <button
+          onClick={() => setShowAddWorkerForm(!showAddWorkerForm)}
+          className="button"
+        >
+          <i className={`fas fa-${showAddWorkerForm ? "times" : "plus"}`}></i>
+          {showAddWorkerForm ? "Cancel" : "Add Worker"}
+        </button>
+      </div>
+
+      {/* Add Worker Form */}
+      {showAddWorkerForm && (
+        <div className="section">
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>Add New Worker</h3>
+            <form onSubmit={addWorker}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Name *</label>
+                  <input
+                    type="text"
+                    value={newWorker.name}
+                    onChange={(e) =>
+                      setNewWorker({ ...newWorker, name: e.target.value })
+                    }
+                    className="form-input"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Email *</label>
+                  <input
+                    type="email"
+                    value={newWorker.email}
+                    onChange={(e) =>
+                      setNewWorker({ ...newWorker, email: e.target.value })
+                    }
+                    className="form-input"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Role</label>
+                  <select
+                    value={newWorker.role}
+                    onChange={(e) =>
+                      setNewWorker({ ...newWorker, role: e.target.value })
+                    }
+                    className="form-input"
+                  >
+                    <option value="Picker">Picker</option>
+                    <option value="Packer">Packer</option>
+                    <option value="Supervisor">Supervisor</option>
+                    <option value="Manager">Manager</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Phone</label>
+                  <input
+                    type="tel"
+                    value={newWorker.phone}
+                    onChange={(e) =>
+                      setNewWorker({ ...newWorker, phone: e.target.value })
+                    }
+                    className="form-input"
+                    placeholder="555-0100"
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Link to User Account (Optional)</label>
+                <select
+                  value={newWorker.userId || ""}
+                  onChange={(e) =>
+                    setNewWorker({
+                      ...newWorker,
+                      userId: e.target.value || null,
+                    })
+                  }
+                  className="form-input"
+                >
+                  <option value="">No user account</option>
+                  {users
+                    .filter(
+                      (user) => !workers.some((w) => w.userId === user.id),
+                    )
+                    .map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.username} ({user.email})
+                      </option>
+                    ))}
+                </select>
+                <small className="form-help-text">
+                  Link this worker to a user account to give them system access
+                </small>
+              </div>
+              <button type="submit" className="button">
+                <i className="fas fa-save"></i> Add Worker
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Workers List */}
+      <div className="section">
+        <div className="card">
+          {workers.length === 0 ? (
+            <p className="empty-state">
+              No workers yet. Add your first worker above!
+            </p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr className="table-header">
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Phone</th>
+                  <th>User Account</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workers.map((worker) => (
+                  <tr key={worker.id} className="table-row">
+                    {editingWorker?.id === worker.id ? (
+                      // Edit mode
+                      <>
+                        <td>{worker.id}</td>
+                        <td>
+                          <input
+                            type="text"
+                            value={editingWorker.name}
+                            onChange={(e) =>
+                              setEditingWorker({
+                                ...editingWorker,
+                                name: e.target.value,
+                              })
+                            }
+                            className="form-input"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="email"
+                            value={editingWorker.email}
+                            onChange={(e) =>
+                              setEditingWorker({
+                                ...editingWorker,
+                                email: e.target.value,
+                              })
+                            }
+                            className="form-input"
+                          />
+                        </td>
+                        <td>
+                          <select
+                            value={editingWorker.role}
+                            onChange={(e) =>
+                              setEditingWorker({
+                                ...editingWorker,
+                                role: e.target.value,
+                              })
+                            }
+                            className="form-input"
+                          >
+                            <option value="Picker">Picker</option>
+                            <option value="Packer">Packer</option>
+                            <option value="Supervisor">Supervisor</option>
+                            <option value="Manager">Manager</option>
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            type="tel"
+                            value={editingWorker.phone}
+                            onChange={(e) =>
+                              setEditingWorker({
+                                ...editingWorker,
+                                phone: e.target.value,
+                              })
+                            }
+                            className="form-input"
+                          />
+                        </td>
+                        <td>
+                          <select
+                            value={editingWorker.userId || ""}
+                            onChange={(e) => {
+                              const newUserId = e.target.value || null;
+                              console.log("Changing userId to:", newUserId);
+                              setEditingWorker({
+                                ...editingWorker,
+                                userId: newUserId,
+                              });
+                            }}
+                            className="form-input"
+                          >
+                            <option value="">No user account</option>
+                            {users
+                              .filter(
+                                (user) =>
+                                  user.id === editingWorker.userId ||
+                                  !workers.some((w) => w.userId === user.id),
+                              )
+                              .map((user) => (
+                                <option key={user.id} value={user.id}>
+                                  {user.username}
+                                </option>
+                              ))}
+                          </select>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${worker.active ? "badge-green" : "badge-orange"}`}
+                          >
+                            {worker.active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="button-group-inline">
+                            <button
+                              onClick={() => {
+                                console.log(
+                                  "Saving worker with:",
+                                  editingWorker,
+                                );
+                                updateWorker(worker.id, {
+                                  name: editingWorker.name,
+                                  email: editingWorker.email,
+                                  role: editingWorker.role,
+                                  phone: editingWorker.phone,
+                                  userId: editingWorker.userId || null,
+                                });
+                              }}
+                              className="button button-small"
+                            >
+                              <i className="fas fa-check"></i>
+                            </button>
+                            <button
+                              onClick={() => setEditingWorker(null)}
+                              className="button button-small button-secondary"
+                            >
+                              <i className="fas fa-times"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      // View mode
+                      <>
+                        <td>{worker.id}</td>
+                        <td>{worker.name}</td>
+                        <td>{worker.email}</td>
+                        <td>{worker.role}</td>
+                        <td>{worker.phone || "-"}</td>
+                        <td>
+                          {worker.userId ? (
+                            <span className="badge badge-green">
+                              <i className="fas fa-user-check"></i>
+                              {worker.username}
+                            </span>
+                          ) : (
+                            <span className="badge badge-gray">
+                              <i className="fas fa-user-slash"></i> No account
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${worker.active ? "badge-green" : "badge-orange"}`}
+                          >
+                            {worker.active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="button-group-inline">
+                            <button
+                              onClick={() =>
+                                setEditingWorker({
+                                  ...worker,
+                                  userId: worker.userId,
+                                })
+                              }
+                              className="button button-small"
+                            >
+                              <i className="fas fa-edit"></i>
+                            </button>
+                            <button
+                              onClick={() =>
+                                toggleWorkerStatus(worker.id, worker.active)
+                              }
+                              className={`button button-small ${
+                                worker.active ? "" : "button-success"
+                              }`}
+                              style={{
+                                backgroundColor: worker.active
+                                  ? "#f59e0b"
+                                  : undefined,
+                              }}
+                            >
+                              <i
+                                className={`fas fa-${worker.active ? "ban" : "check"}`}
+                              ></i>
+                            </button>
+                            <button
+                              onClick={() => deleteWorker(worker.id)}
+                              className="button button-small button-danger"
+                            >
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </>
   );
 
@@ -4159,15 +3816,8 @@ function App() {
 
     return (
       <>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "30px",
-          }}
-        >
-          <h1 className="page-title" style={{ margin: 0 }}>
+        <div className="page-header">
+          <h1 className="page-header-title">
             <i className="fas fa-users-cog"></i> User Management
           </h1>
         </div>
@@ -4204,7 +3854,7 @@ function App() {
                       </td>
                       <td>{new Date(user.created_at).toLocaleDateString()}</td>
                       <td>
-                        <div style={{ display: "flex", gap: "5px" }}>
+                        <div className="button-group-inline">
                           <button
                             onClick={() => {
                               const newRole =
@@ -4217,20 +3867,14 @@ function App() {
                                 updateUser(user.id, { role: newRole });
                               }
                             }}
-                            className="button"
-                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                            className="button button-small"
                           >
                             <i className="fas fa-exchange-alt"></i> Toggle Role
                           </button>
                           {user.id !== currentUser.userId && (
                             <button
                               onClick={() => deleteUser(user.id)}
-                              className="button"
-                              style={{
-                                padding: "6px 12px",
-                                fontSize: "12px",
-                                backgroundColor: "#ef4444",
-                              }}
+                              className="button button-small button-danger"
                             >
                               <i className="fas fa-trash"></i>
                             </button>
@@ -4325,48 +3969,22 @@ function App() {
         ) : (
           <>
             {/* Tabs */}
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-                marginBottom: "20px",
-                borderBottom: "2px solid #e5e7eb",
-                paddingBottom: "10px",
-              }}
-            >
+            <div className="settings-tabs">
               <button
                 onClick={() => setSettingsActiveTab("branding")}
-                className="button"
-                style={{
-                  backgroundColor:
-                    settingsActiveTab === "branding" ? "#3b82f6" : "#e5e7eb",
-                  color: settingsActiveTab === "branding" ? "white" : "#374151",
-                  borderRadius: "6px 6px 0 0",
-                }}
+                className={`button settings-tab ${settingsActiveTab === "branding" ? "active" : ""}`}
               >
                 <i className="fas fa-palette"></i> Branding
               </button>
               <button
                 onClick={() => setSettingsActiveTab("colors")}
-                className="button"
-                style={{
-                  backgroundColor:
-                    settingsActiveTab === "colors" ? "#3b82f6" : "#e5e7eb",
-                  color: settingsActiveTab === "colors" ? "white" : "#374151",
-                  borderRadius: "6px 6px 0 0",
-                }}
+                className={`button settings-tab ${settingsActiveTab === "colors" ? "active" : ""}`}
               >
                 <i className="fas fa-paint-brush"></i> Colors
               </button>
               <button
                 onClick={() => setSettingsActiveTab("system")}
-                className="button"
-                style={{
-                  backgroundColor:
-                    settingsActiveTab === "system" ? "#3b82f6" : "#e5e7eb",
-                  color: settingsActiveTab === "system" ? "white" : "#374151",
-                  borderRadius: "6px 6px 0 0",
-                }}
+                className={`button settings-tab ${settingsActiveTab === "system" ? "active" : ""}`}
               >
                 <i className="fas fa-sliders-h"></i> System
               </button>
@@ -4381,15 +3999,7 @@ function App() {
                   </h2>
 
                   <div className="form-group">
-                    <label
-                      style={{
-                        fontWeight: "600",
-                        display: "block",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Company Name
-                    </label>
+                    <label>Company Name</label>
                     <input
                       type="text"
                       value={tempSettings.company_name || ""}
@@ -4399,27 +4009,13 @@ function App() {
                       className="form-input"
                       placeholder="e.g., Acme Corporation"
                     />
-                    <small
-                      style={{
-                        color: "#6b7280",
-                        display: "block",
-                        marginTop: "5px",
-                      }}
-                    >
+                    <small className="form-help-text">
                       This name appears throughout the application
                     </small>
                   </div>
 
                   <div className="form-group" style={{ marginTop: "20px" }}>
-                    <label
-                      style={{
-                        fontWeight: "600",
-                        display: "block",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Company Tagline
-                    </label>
+                    <label>Company Tagline</label>
                     <input
                       type="text"
                       value={tempSettings.company_tagline || ""}
@@ -4429,57 +4025,27 @@ function App() {
                       className="form-input"
                       placeholder="e.g., Warehouse Management System"
                     />
-                    <small
-                      style={{
-                        color: "#6b7280",
-                        display: "block",
-                        marginTop: "5px",
-                      }}
-                    >
+                    <small className="form-help-text">
                       Appears below the company name
                     </small>
                   </div>
 
                   <div className="form-group" style={{ marginTop: "30px" }}>
-                    <label
-                      style={{
-                        fontWeight: "600",
-                        display: "block",
-                        marginBottom: "8px",
-                      }}
-                    >
+                    <label>
                       <i className="fas fa-image"></i> Company Logo
                     </label>
 
                     {/* Current Logo Display */}
                     {settings.company_logo_url && !logoPreview && (
-                      <div
-                        style={{
-                          marginBottom: "15px",
-                          padding: "20px",
-                          backgroundColor: "#f9fafb",
-                          borderRadius: "8px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "20px",
-                        }}
-                      >
+                      <div className="logo-display">
                         <img
                           src={`http://localhost:3000${settings.company_logo_url}`}
                           alt="Company Logo"
-                          style={{
-                            maxHeight: "80px",
-                            maxWidth: "200px",
-                            objectFit: "contain",
-                          }}
+                          className="preview-image"
                         />
                         <button
                           onClick={deleteLogo}
-                          className="button"
-                          style={{
-                            backgroundColor: "#ef4444",
-                            padding: "8px 16px",
-                          }}
+                          className="button button-danger"
                         >
                           <i className="fas fa-trash"></i> Remove Logo
                         </button>
@@ -4488,39 +4054,17 @@ function App() {
 
                     {/* Logo Preview */}
                     {logoPreview && (
-                      <div
-                        style={{
-                          marginBottom: "15px",
-                          padding: "20px",
-                          backgroundColor: "#f0fdf4",
-                          borderRadius: "8px",
-                          border: "2px solid #10b981",
-                        }}
-                      >
-                        <p
-                          style={{
-                            marginTop: 0,
-                            fontWeight: "600",
-                            color: "#065f46",
-                          }}
-                        >
-                          Preview:
-                        </p>
+                      <div className="preview-box">
+                        <p className="preview-box-title">Preview:</p>
                         <img
                           src={logoPreview}
                           alt="Logo Preview"
-                          style={{
-                            maxHeight: "80px",
-                            maxWidth: "200px",
-                            objectFit: "contain",
-                            marginBottom: "10px",
-                          }}
+                          className="preview-image"
                         />
-                        <div style={{ display: "flex", gap: "10px" }}>
+                        <div className="button-group">
                           <button
                             onClick={handleLogoUpload}
-                            className="button"
-                            style={{ backgroundColor: "#10b981" }}
+                            className="button button-success"
                           >
                             <i className="fas fa-upload"></i> Upload This Logo
                           </button>
@@ -4529,8 +4073,7 @@ function App() {
                               setLogoFile(null);
                               setLogoPreview(null);
                             }}
-                            className="button"
-                            style={{ backgroundColor: "#6b7280" }}
+                            className="button button-secondary"
                           >
                             <i className="fas fa-times"></i> Cancel
                           </button>
@@ -4544,42 +4087,23 @@ function App() {
                       accept="image/*"
                       onChange={handleLogoSelect}
                       id="logo-upload"
-                      style={{ display: "none" }}
+                      className="file-upload-hidden"
                     />
                     <label
                       htmlFor="logo-upload"
-                      className="button"
-                      style={{
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "8px",
-                      }}
+                      className="button file-upload-label"
                     >
                       <i className="fas fa-upload"></i> Choose Logo Image
                     </label>
-                    <small
-                      style={{
-                        color: "#6b7280",
-                        display: "block",
-                        marginTop: "5px",
-                      }}
-                    >
+                    <small className="form-help-text">
                       Accepted formats: JPG, PNG, GIF, SVG (Max 5MB)
                     </small>
                   </div>
 
-                  <div
-                    style={{
-                      marginTop: "30px",
-                      paddingTop: "20px",
-                      borderTop: "1px solid #e5e7eb",
-                    }}
-                  >
+                  <div className="form-section">
                     <button
                       onClick={handleSaveSettings}
-                      className="button"
-                      style={{ backgroundColor: "#10b981" }}
+                      className="button button-success"
                     >
                       <i className="fas fa-save"></i> Save Branding Settings
                     </button>
@@ -4595,71 +4119,29 @@ function App() {
                   <h2 className="section-title">
                     <i className="fas fa-paint-brush"></i> Color Customization
                   </h2>
-                  <div
-                    style={{
-                      padding: "15px",
-                      backgroundColor: "#dbeafe",
-                      borderRadius: "8px",
-                      marginBottom: "20px",
-                      border: "2px solid #3b82f6",
-                    }}
-                  >
-                    <p
-                      style={{ margin: 0, color: "#1e40af", fontWeight: "600" }}
-                    >
+
+                  <div className="info-banner">
+                    <p className="info-banner-title">
                       <i className="fas fa-info-circle"></i> Preview Mode Active
                     </p>
-                    <p
-                      style={{
-                        margin: "5px 0 0 0",
-                        color: "#1e3a8a",
-                        fontSize: "14px",
-                      }}
-                    >
+                    <p className="info-banner-text">
                       Colors will update in real-time as you change them. Click
                       "Save" to make them permanent.
                     </p>
                   </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(250px, 1fr))",
-                      gap: "20px",
-                    }}
-                  >
+                  <div className="color-picker-grid">
                     {/* Primary Color */}
-                    <div>
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Primary Color
-                      </label>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          alignItems: "center",
-                        }}
-                      >
+                    <div className="color-picker-group">
+                      <label>Primary Color</label>
+                      <div className="color-picker-row">
                         <input
                           type="color"
                           value={tempSettings.color_primary || "#3b82f6"}
                           onChange={(e) =>
                             handleSettingChange("color_primary", e.target.value)
                           }
-                          style={{
-                            width: "60px",
-                            height: "40px",
-                            border: "2px solid #d1d5db",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                          }}
+                          className="form-input-color"
                         />
                         <input
                           type="text"
@@ -4668,38 +4150,17 @@ function App() {
                             handleSettingChange("color_primary", e.target.value)
                           }
                           className="form-input"
-                          style={{ flex: 1 }}
                         />
                       </div>
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Buttons, links, main accents
                       </small>
                     </div>
 
                     {/* Secondary Color */}
-                    <div>
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Secondary Color
-                      </label>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          alignItems: "center",
-                        }}
-                      >
+                    <div className="color-picker-group">
+                      <label>Secondary Color</label>
+                      <div className="color-picker-row">
                         <input
                           type="color"
                           value={tempSettings.color_secondary || "#1e40af"}
@@ -4709,13 +4170,7 @@ function App() {
                               e.target.value,
                             )
                           }
-                          style={{
-                            width: "60px",
-                            height: "40px",
-                            border: "2px solid #d1d5db",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                          }}
+                          className="form-input-color"
                         />
                         <input
                           type="text"
@@ -4727,51 +4182,24 @@ function App() {
                             )
                           }
                           className="form-input"
-                          style={{ flex: 1 }}
                         />
                       </div>
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Secondary elements
                       </small>
                     </div>
 
                     {/* Sidebar Background */}
-                    <div>
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Sidebar Background
-                      </label>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          alignItems: "center",
-                        }}
-                      >
+                    <div className="color-picker-group">
+                      <label>Sidebar Background</label>
+                      <div className="color-picker-row">
                         <input
                           type="color"
                           value={tempSettings.color_sidebar || "#1f2937"}
                           onChange={(e) =>
                             handleSettingChange("color_sidebar", e.target.value)
                           }
-                          style={{
-                            width: "60px",
-                            height: "40px",
-                            border: "2px solid #d1d5db",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                          }}
+                          className="form-input-color"
                         />
                         <input
                           type="text"
@@ -4780,38 +4208,17 @@ function App() {
                             handleSettingChange("color_sidebar", e.target.value)
                           }
                           className="form-input"
-                          style={{ flex: 1 }}
                         />
                       </div>
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Navigation sidebar color
                       </small>
                     </div>
 
                     {/* Sidebar Text */}
-                    <div>
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Sidebar Text
-                      </label>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          alignItems: "center",
-                        }}
-                      >
+                    <div className="color-picker-group">
+                      <label>Sidebar Text</label>
+                      <div className="color-picker-row">
                         <input
                           type="color"
                           value={tempSettings.color_sidebar_text || "#ffffff"}
@@ -4821,13 +4228,7 @@ function App() {
                               e.target.value,
                             )
                           }
-                          style={{
-                            width: "60px",
-                            height: "40px",
-                            border: "2px solid #d1d5db",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                          }}
+                          className="form-input-color"
                         />
                         <input
                           type="text"
@@ -4839,51 +4240,24 @@ function App() {
                             )
                           }
                           className="form-input"
-                          style={{ flex: 1 }}
                         />
                       </div>
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Text color in sidebar
                       </small>
                     </div>
 
                     {/* Success Color */}
-                    <div>
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Success Color
-                      </label>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          alignItems: "center",
-                        }}
-                      >
+                    <div className="color-picker-group">
+                      <label>Success Color</label>
+                      <div className="color-picker-row">
                         <input
                           type="color"
                           value={tempSettings.color_success || "#10b981"}
                           onChange={(e) =>
                             handleSettingChange("color_success", e.target.value)
                           }
-                          style={{
-                            width: "60px",
-                            height: "40px",
-                            border: "2px solid #d1d5db",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                          }}
+                          className="form-input-color"
                         />
                         <input
                           type="text"
@@ -4892,51 +4266,24 @@ function App() {
                             handleSettingChange("color_success", e.target.value)
                           }
                           className="form-input"
-                          style={{ flex: 1 }}
                         />
                       </div>
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Success states & badges
                       </small>
                     </div>
 
                     {/* Warning Color */}
-                    <div>
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Warning Color
-                      </label>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          alignItems: "center",
-                        }}
-                      >
+                    <div className="color-picker-group">
+                      <label>Warning Color</label>
+                      <div className="color-picker-row">
                         <input
                           type="color"
                           value={tempSettings.color_warning || "#f59e0b"}
                           onChange={(e) =>
                             handleSettingChange("color_warning", e.target.value)
                           }
-                          style={{
-                            width: "60px",
-                            height: "40px",
-                            border: "2px solid #d1d5db",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                          }}
+                          className="form-input-color"
                         />
                         <input
                           type="text"
@@ -4945,51 +4292,24 @@ function App() {
                             handleSettingChange("color_warning", e.target.value)
                           }
                           className="form-input"
-                          style={{ flex: 1 }}
                         />
                       </div>
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Warning states & badges
                       </small>
                     </div>
 
                     {/* Danger Color */}
-                    <div>
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Danger Color
-                      </label>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          alignItems: "center",
-                        }}
-                      >
+                    <div className="color-picker-group">
+                      <label>Danger Color</label>
+                      <div className="color-picker-row">
                         <input
                           type="color"
                           value={tempSettings.color_danger || "#ef4444"}
                           onChange={(e) =>
                             handleSettingChange("color_danger", e.target.value)
                           }
-                          style={{
-                            width: "60px",
-                            height: "40px",
-                            border: "2px solid #d1d5db",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                          }}
+                          className="form-input-color"
                         />
                         <input
                           type="text"
@@ -4998,32 +4318,18 @@ function App() {
                             handleSettingChange("color_danger", e.target.value)
                           }
                           className="form-input"
-                          style={{ flex: 1 }}
                         />
                       </div>
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Error states & delete buttons
                       </small>
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      marginTop: "30px",
-                      paddingTop: "20px",
-                      borderTop: "1px solid #e5e7eb",
-                    }}
-                  >
+                  <div className="form-section">
                     <button
                       onClick={handleSaveSettings}
-                      className="button"
-                      style={{ backgroundColor: "#10b981" }}
+                      className="button button-success"
                     >
                       <i className="fas fa-save"></i> Save Color Settings
                     </button>
@@ -5042,15 +4348,7 @@ function App() {
 
                   <div className="form-row">
                     <div className="form-group">
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Currency Symbol
-                      </label>
+                      <label>Currency Symbol</label>
                       <input
                         type="text"
                         value={tempSettings.currency_symbol || "$"}
@@ -5061,27 +4359,13 @@ function App() {
                         placeholder="$"
                         maxLength="3"
                       />
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Symbol used for prices (e.g., $, €, £)
                       </small>
                     </div>
 
                     <div className="form-group">
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Low Stock Threshold
-                      </label>
+                      <label>Low Stock Threshold</label>
                       <input
                         type="number"
                         value={tempSettings.low_stock_threshold || 10}
@@ -5094,13 +4378,7 @@ function App() {
                         className="form-input"
                         min="0"
                       />
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Show warnings when stock falls below this number
                       </small>
                     </div>
@@ -5108,15 +4386,7 @@ function App() {
 
                   <div className="form-row" style={{ marginTop: "20px" }}>
                     <div className="form-group">
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Items Per Page
-                      </label>
+                      <label>Items Per Page</label>
                       <select
                         value={tempSettings.items_per_page || 20}
                         onChange={(e) =>
@@ -5129,27 +4399,13 @@ function App() {
                         <option value="50">50</option>
                         <option value="100">100</option>
                       </select>
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         Default number of items shown in tables
                       </small>
                     </div>
 
                     <div className="form-group">
-                      <label
-                        style={{
-                          fontWeight: "600",
-                          display: "block",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Date Format
-                      </label>
+                      <label>Date Format</label>
                       <select
                         value={tempSettings.date_format || "MM/DD/YYYY"}
                         onChange={(e) =>
@@ -5161,29 +4417,16 @@ function App() {
                         <option value="DD/MM/YYYY">DD/MM/YYYY (UK/EU)</option>
                         <option value="YYYY-MM-DD">YYYY-MM-DD (ISO)</option>
                       </select>
-                      <small
-                        style={{
-                          color: "#6b7280",
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
+                      <small className="form-help-text">
                         How dates are displayed
                       </small>
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      marginTop: "30px",
-                      paddingTop: "20px",
-                      borderTop: "1px solid #e5e7eb",
-                    }}
-                  >
+                  <div className="form-section">
                     <button
                       onClick={handleSaveSettings}
-                      className="button"
-                      style={{ backgroundColor: "#10b981" }}
+                      className="button button-success"
                     >
                       <i className="fas fa-save"></i> Save System Settings
                     </button>
@@ -5199,57 +4442,19 @@ function App() {
 
   // Login/Register page
   const renderAuthPage = () => (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "white",
-          padding: "40px",
-          borderRadius: "10px",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
-          width: "100%",
-          maxWidth: "400px",
-        }}
-      >
-        <h1
-          style={{
-            textAlign: "center",
-            marginBottom: "10px",
-            color: "#1f2937",
-          }}
-        >
+    <div className="auth-container">
+      <div className="auth-card">
+        <h1 className="auth-title">
           <i className="fas fa-warehouse"></i> OrderFlow
         </h1>
-        <p
-          style={{
-            textAlign: "center",
-            color: "#6b7280",
-            marginBottom: "30px",
-          }}
-        >
+        <p className="auth-subtitle">
           {showLoginForm ? "Welcome back!" : "Create your account"}
         </p>
 
         <form onSubmit={showLoginForm ? handleLogin : handleRegister}>
           {!showLoginForm && (
-            <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "5px",
-                  fontWeight: "600",
-                  color: "#374151",
-                }}
-              >
-                Username
-              </label>
+            <div className="auth-form-group">
+              <label className="auth-form-label">Username</label>
               <input
                 type="text"
                 value={authForm.username}
@@ -5257,28 +4462,13 @@ function App() {
                   setAuthForm({ ...authForm, username: e.target.value })
                 }
                 required={!showLoginForm}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                }}
+                className="auth-form-input"
               />
             </div>
           )}
 
-          <div style={{ marginBottom: "20px" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "5px",
-                fontWeight: "600",
-                color: "#374151",
-              }}
-            >
-              Email
-            </label>
+          <div className="auth-form-group">
+            <label className="auth-form-label">Email</label>
             <input
               type="email"
               value={authForm.email}
@@ -5286,27 +4476,12 @@ function App() {
                 setAuthForm({ ...authForm, email: e.target.value })
               }
               required
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
+              className="auth-form-input"
             />
           </div>
 
-          <div style={{ marginBottom: "20px" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "5px",
-                fontWeight: "600",
-                color: "#374151",
-              }}
-            >
-              Password
-            </label>
+          <div className="auth-form-group">
+            <label className="auth-form-label">Password</label>
             <input
               type="password"
               value={authForm.password}
@@ -5315,54 +4490,25 @@ function App() {
               }
               required
               minLength={6}
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
+              className="auth-form-input"
             />
             {!showLoginForm && (
-              <small style={{ color: "#6b7280" }}>Minimum 6 characters</small>
+              <small className="form-help-text">Minimum 6 characters</small>
             )}
           </div>
 
-          <button
-            type="submit"
-            style={{
-              width: "100%",
-              padding: "12px",
-              backgroundColor: "#3b82f6",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "16px",
-              fontWeight: "600",
-              cursor: "pointer",
-              marginBottom: "15px",
-            }}
-          >
+          <button type="submit" className="auth-form-button">
             {showLoginForm ? "Login" : "Register"}
           </button>
 
-          <p
-            style={{ textAlign: "center", color: "#6b7280", fontSize: "14px" }}
-          >
+          <p className="auth-toggle-text">
             {showLoginForm
               ? "Don't have an account? "
               : "Already have an account? "}
             <button
               type="button"
               onClick={() => setShowLoginForm(!showLoginForm)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#3b82f6",
-                cursor: "pointer",
-                textDecoration: "underline",
-                fontSize: "14px",
-              }}
+              className="auth-toggle-button"
             >
               {showLoginForm ? "Register" : "Login"}
             </button>

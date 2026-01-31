@@ -224,6 +224,54 @@ body {
   gap: 15px;
 }
 
+/* Clickable stat card - adds hover effect and cursor */
+.stat-card-clickable {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.stat-card-clickable::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.1));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.stat-card-clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.stat-card-clickable:hover::before {
+  opacity: 1;
+}
+
+.stat-card-clickable:active {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Add a subtle "click me" indicator */
+.stat-card-clickable .stat-label::after {
+  content: ' →';
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  color: var(--color-primary);
+  font-weight: bold;
+}
+
+.stat-card-clickable:hover .stat-label::after {
+  opacity: 1;
+}
+
 .stat-icon {
   font-size: 32px;
 }
@@ -959,7 +1007,11 @@ textarea.form-input {
   height: 250px;
 }
 
-/* Auth Page */
+/* ========================================
+   AUTHENTICATION PAGE STYLES
+   ======================================== */
+
+/* Auth Container - Full screen centered layout */
 .auth-container {
   min-height: 100vh;
   display: flex;
@@ -968,6 +1020,7 @@ textarea.form-input {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
+/* Auth Card - White card container */
 .auth-card {
   background-color: white;
   padding: 40px;
@@ -977,37 +1030,54 @@ textarea.form-input {
   max-width: 400px;
 }
 
+/* Auth Title - App name/logo */
 .auth-title {
   text-align: center;
   margin-bottom: 10px;
   color: #1f2937;
+  font-size: 32px;
+  font-weight: 700;
 }
 
+/* Auth Subtitle - Welcome message */
 .auth-subtitle {
   text-align: center;
   color: #6b7280;
   margin-bottom: 30px;
+  font-size: 16px;
 }
 
+/* Auth Form Group - Container for label + input */
 .auth-form-group {
   margin-bottom: 20px;
 }
 
+/* Auth Form Label - Labels for inputs */
 .auth-form-label {
   display: block;
   margin-bottom: 5px;
   font-weight: 600;
   color: #374151;
+  font-size: 14px;
 }
 
+/* Auth Form Input - Text/email/password inputs */
 .auth-form-input {
   width: 100%;
   padding: 10px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 14px;
+  transition: border-color 0.2s;
 }
 
+.auth-form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Auth Form Button - Submit button */
 .auth-form-button {
   width: 100%;
   padding: 12px;
@@ -1019,18 +1089,26 @@ textarea.form-input {
   font-weight: 600;
   cursor: pointer;
   margin-bottom: 15px;
+  transition: background-color 0.2s;
 }
 
 .auth-form-button:hover {
   background-color: #2563eb;
 }
 
+.auth-form-button:active {
+  transform: translateY(1px);
+}
+
+/* Auth Toggle Text - "Don't have an account?" text */
 .auth-toggle-text {
   text-align: center;
   color: #6b7280;
   font-size: 14px;
+  margin: 0;
 }
 
+/* Auth Toggle Button - "Register" / "Login" link button */
 .auth-toggle-button {
   background: none;
   border: none;
@@ -1038,10 +1116,24 @@ textarea.form-input {
   cursor: pointer;
   text-decoration: underline;
   font-size: 14px;
+  padding: 0;
+  font-weight: 500;
 }
 
 .auth-toggle-button:hover {
   color: #2563eb;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 30px 20px;
+    margin: 20px;
+  }
+  
+  .auth-title {
+    font-size: 28px;
+  }
 }
 
 /* Responsive */
